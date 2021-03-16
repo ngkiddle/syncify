@@ -18,7 +18,8 @@ app.get('/api/discBridges', (req, res) => {
         bridge = b;
         console.log("bridge: " + bridge)
         if (bridge){
-            res.send({ connected: true });
+            res.send({ connected: true,
+                       bridge: bridge });
         }
         else{
             res.send({ connected: false });
@@ -56,11 +57,12 @@ app.get('/api/allLights', (req, res) => {
 });
 
 
-app.post('/api/red', (req, res) => {
+app.post('/api/bridgeAuth', (req, res) => {
     console.log(req.body);
     res.send(
         `I received your POST request. This is what you sent me: ${req.body.post}`,
     );
+    bridge = req.body.bridge;
 });
 
 app.listen(port, () => console.log(`Listening on port ${port}`));

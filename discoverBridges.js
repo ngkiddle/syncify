@@ -43,8 +43,7 @@ async function discoverAndCreateUser() {
     console.log(`Connected to Hue Bridge: ${bridgeConfig.name} :: ${bridgeConfig.ipaddress}`);
     return {ip: bridgeConfig.ipaddress,
             name: bridgeConfig.name,
-            username: createdUser.username,
-            auth: createdUser.clientkey
+            username: createdUser.username
           };
 
   } catch(err) {
