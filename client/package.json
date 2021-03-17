@@ -15,7 +15,8 @@
     "react-dom": "^16.8.1",
     "react-router-dom": "^5.1.2",
     "react-scripts": "^3.4.1",
-    "react-spotify-web-playback": "^0.8.1"
+    "react-spotify-web-playback": "^0.8.1",
+    "threads": "^1.6.3"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -42,6 +43,7 @@
     ]
   },
   "devDependencies": {
-    "@babel/plugin-proposal-export-namespace-from": "^7.12.13"
+    "@babel/plugin-proposal-export-namespace-from": "^7.12.13",
+    "threads-plugin": "^1.4.0"
   }
 }

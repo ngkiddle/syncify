@@ -6,16 +6,14 @@ import * as $ from "jquery";
 import SpotifyPlayer from 'react-spotify-web-playback';
 import Lightbulb from './components/lightbulbs.js';
 import { useCookies } from 'react-cookie';
+import { spawn, Thread, Worker } from "threads"
 
 
 function App() {
   const [cookies, setCookie] = useCookies(['bridge']);
-  console.log("cookies: ")
-  console.log(cookies)
   const [bridgeOK, setBridgeOK] = useState(false);
   const [token, setToken] = useState("");
   const [lights, setLights] = useState([]);
-  // const [connect, clickedConnect] = useState(0)
 
   useEffect(() => {
     // Set token
@@ -33,26 +31,12 @@ function App() {
           body: JSON.stringify({ bridge: cookies.bridge }),
         });
         const body = await response.text();
-        console.log(response.status);
         setBridgeOK(true);
         //post the data to server
       }
       conBridge();
     }
   },[]);
-
-  // useEffect(() => {
-  //   const conBridge = async () => {
-  //     const res = await connectBridge();
-  //     if (res.connected) {
-  //       setCookie('bridge', {name: res.bridge.name,
-  //         username: res.bridge.username,
-  //         ip: res.bridge.ip}, {path: '/', secure: true, sameSite: 'strict'})
-  //     }
-  //     setBridgeOK(res.connected);
-  //   }
-  //   conBridge();
-  // },[]);
 
   async function connectBridge(){
     const response = await fetch('/api/discBridges');
@@ -63,12 +47,9 @@ function App() {
                                 username: body.bridge.username,
                                 ip: body.bridge.ip
                               };
-      console.log("newcook: ")
-      console.log(newBridgeCookie)
       setCookie('bridge', newBridgeCookie, {path: '/'});
     }
     if (response.status !== 200) throw Error(body.message);
-    console.log(cookies)
     return body;
   };
   
@@ -90,7 +71,6 @@ function App() {
       }
       bulb['state'] = on;
       l.push(bulb);
-      console.log(bulb);
     }
     setLights(l);
     return l;
@@ -114,12 +94,24 @@ function App() {
           <div className="centerH" styles={css`height: 50%; width: 100%; top: 10%`}>
           <SpotifyPlayer
                 token={token}
-                autoPlay={true}
+                autoPlay={false}
                 magnifySliderOnHover={true}
                 syncExternalDevice={true}
+                syncExternalDeviceInterval={1}
+                persistDeviceSelection={true}
                 name="Syncify"
-                callback={(State) => analysis(State, token)}
-                uris={['spotify:artist:0L8ExT028jH3ddEcZwqJJ5']}
+                callback={(State) => {
+                          analysis(State, token)
+                          // if (analyzeSync){
+                          //   await Thread.terminate(analyzeSync);
+                          // }
+                          // const analyzeSync = await spawn(new Worker("./sync.js"));
+                          // const updated = await analyzeSync(State)
+                          // Thread.events(analyzeSync).subscribe(event => console.log("Thread event:", event))
+
+                          // await Thread.terminate(analyzeSync);
+                        }}
+                uris={['spotify:artist:1HUSv86hnnIK5uUivIFmVM']}
                 styles={{
                   height: '35%',
                   activeColor: '#F0FFF0',
@@ -142,15 +134,20 @@ function App() {
                 onClick={async () => await connectBridge()}>
             Connect Hue Bridge
         </button>)}
+        
+        {bridgeOK && (
+        <div>
+            Connected to {cookies.bridge.name} : {cookies.bridge.ip}
+        </div>)}
+
         {lights && (
           lights.map((l, i) => <Lightbulb key={i} {...l}/>)
         )}
-        {/* {bridgeOK && (
-        <button className="btn  btn--loginApp-link">
-            Connected to {cookies.bridge.name} : {cookies.bridge.ip}
-        </button>)} */}
+
+  
+
         {bridgeOK && (
-        <button className="btn  btn--loginApp-link"
+        <button className="btn centerH btn--loginApp-link"
                 onClick={async () => await getLights()}>
             Get Lights
         </button>)}
@@ -225,7 +222,7 @@ window.location.hash = "";
 
 function analysis(state, token) {
   console.log(state)
-  if (state.play === false){
+  if (state.isPlaying === false){
     console.log("black")
   }
   else{
@@ -236,35 +233,51 @@ function analysis(state, token) {
         xhr.setRequestHeader("Authorization", "Bearer " + token);
       },
       success: (res) => {
-        console.log(res);
-        let duration = res.track.duration
         let segments = res.segments.map(segment => {
           return {
-            start: segment.start / duration,
-            duration: segment.duration / duration,
-            loudness: 1 - (Math.min(Math.max(segment.loudness_max, -35), 0) / -35)
+            start: segment.start,
+            duration: segment.duration *1000,
+            loudness: ((1 - (Math.min(Math.max(segment.loudness_max, -20), 0) / -20)) * 253) +1
           }
         })
-
-        let min = Math.min(...segments.map(s => s.loudness))
-        let max = Math.max(...segments.map(s => s.loudness))
-        let levels = []
         console.log(segments)
-        for (let i = 0.000; i < 1; i += 0.001) {
-          let s = segments.find(segment => {
-            return i <= segment.start + segment.duration
-          })
-          let loudness = Math.round((s.loudness / max) * 100) / 100
-          levels.push(loudness)
-
+        var dur = segments[0].duration;
+        var bri = segments[0].loudness;
+        for (var i = 0; i < segments.length; i++){
+          dur = segments[i].duration;
+          bri = segments[i].loudness;
+          // var start = segments[i].start;
+          changeBri(1, bri);
+          changeBri(2, bri);
+          changeBri(3, bri);
+          sleep(dur);
         }
-
       },
       error: (err) => {
         console.log(err);
       }
     });  
   }
+}
+function sleep(milliseconds) {
+  const date = Date.now();
+  let currentDate = null;
+  do {
+    currentDate = Date.now();
+  } while (currentDate - date < milliseconds);
+}
+
+const changeBri = async (id, bri) => {
+  const response = await fetch('/api/lightBrigtness', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ id: id,
+                           state: {bri: bri} }),
+  });
+  const body = await response.text();
+  //post the data to server
 }
 
 export default App;

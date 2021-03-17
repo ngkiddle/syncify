@@ -5,6 +5,7 @@ const app = express();
 const v3 = require('node-hue-api').v3;
 const discovery = require('node-hue-api').discovery;
 const port = process.env.PORT || 5000;
+var hueapi = {}
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -39,6 +40,7 @@ app.get('/api/allLights', (req, res) => {
     })
     .then(api => {
         const lightsAll = api.lights.getAll()
+        hueapi = api;
         return lightsAll;
     })
     .then(allLights => {
@@ -56,6 +58,20 @@ app.get('/api/allLights', (req, res) => {
     });
 });
 
+
+
+  app.post('/api/lightBrigtness', (req, res) => {
+    const id = req.body.id;
+    const state = req.body.state;
+    console.log(id);
+    console.log(state);
+
+    hueapi.lights.setLightState(id, state)
+    .then(result => {
+      console.log();
+      res.send(`Light state change was successful? ${result}`);
+    })
+});
 
 app.post('/api/bridgeAuth', (req, res) => {
     console.log(req.body);
