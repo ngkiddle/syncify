@@ -4,8 +4,10 @@ const disc = require('./discoverBridges');
 const app = express();
 const v3 = require('node-hue-api').v3;
 const discovery = require('node-hue-api').discovery;
+const thrd = require("threads");
 const port = process.env.PORT || 5000;
 var hueapi = {}
+var sync = undefined;
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -21,6 +23,9 @@ app.get('/api/discBridges', (req, res) => {
         if (bridge){
             res.send({ connected: true,
                        bridge: bridge });
+            v3.api.createLocal(bridge.ip).connect(bridge.username).then(api =>{
+                hueapi = api;
+            })
         }
         else{
             res.send({ connected: false });
@@ -30,55 +35,58 @@ app.get('/api/discBridges', (req, res) => {
         console.log(err)
     })
 });
-
-// get lights on a bridge
-app.get('/api/allLights', (req, res) => {
-    discovery.nupnpSearch().then(searchResults => {
-        const host = bridge.ip;
-        console.log("connected to: " + host)
-        return v3.api.createLocal(host).connect(bridge.username);
-    })
-    .then(api => {
-        const lightsAll = api.lights.getAll()
-        hueapi = api;
-        return lightsAll;
-    })
-    .then(allLights => {
-        // Display the details of the lights we got back
-        console.log(JSON.stringify(allLights, null, 2));
-        // Iterate over the light objects showing details
-        allLights.forEach(light => {
-        console.log(light.toStringDetailed());
-        res.send(allLights);
-
-    });
-    })
-    .catch(err => {
-        console.error(err);
-    });
-});
-
-
-
-  app.post('/api/lightBrigtness', (req, res) => {
-    const id = req.body.id;
-    const state = req.body.state;
-    console.log(id);
-    console.log(state);
-
-    hueapi.lights.setLightState(id, state)
-    .then(result => {
-      console.log();
-      res.send(`Light state change was successful? ${result}`);
-    })
-});
-
+// recieve client cached bridge and connect
 app.post('/api/bridgeAuth', (req, res) => {
     console.log(req.body);
     res.send(
         `I received your POST request. This is what you sent me: ${req.body.post}`,
     );
     bridge = req.body.bridge;
+    v3.api.createLocal(bridge.ip).connect(bridge.username).then(api =>{
+        hueapi = api;
+    })
 });
+
+// get lights on a bridge
+app.get('/api/allLights', (req, res) => {
+    hueapi.lights.getAll().then( lights => {
+        // Iterate over the light objects showing details
+        lights.forEach(light => {
+            console.log(light.toStringDetailed());
+        });
+        res.send(lights);
+    })
+});
+
+//change a light's brightness
+app.post('/api/changeBrightness', (req, res) => {
+    const id = req.body.id;
+    const state = req.body.state;
+    // console.log(id + " : " + state.bri)
+    const result = hueapi.lights.setLightState(id, state);
+    // console.log(result);
+    res.send(result)
+});
+
+//recieve spotify segment data
+app.post('/api/sendSegments', (req, res) => {
+    const segs = req.body.segments;
+    console.log(segs)
+    const syncPls = async (segs) => {
+        console.log("recieved second state update")
+        if (sync !== undefined){
+            thrd.Thread.terminate(sync);
+        }
+        sync = await thrd.spawn(new thrd.Worker("./sync.js"));
+        // console.log(sync)
+        thrd.Thread.events(sync).subscribe(event => console.log("Thread event:", event))
+        const result = await sync(segs, bridge);
+        await thrd.Thread.terminate(sync);
+        sync = undefined;
+        res.send(result)
+    }
+    syncPls(segs);
+});
+
 
 app.listen(port, () => console.log(`Listening on port ${port}`));

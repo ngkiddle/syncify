@@ -6,29 +6,35 @@ import * as $ from "jquery";
 import SpotifyPlayer from 'react-spotify-web-playback';
 import Lightbulb from './components/lightbulbs.js';
 import { useCookies } from 'react-cookie';
-import { spawn, Thread, Worker } from "threads"
 
 
 function App() {
-  const [cookies, setCookie] = useCookies(['bridge']);
+  const [hue, setHue] = useCookies(['bridge']);
+  const [spotify, setSpotify] = useCookies(['spotify']);
   const [bridgeOK, setBridgeOK] = useState(false);
   const [token, setToken] = useState("");
   const [lights, setLights] = useState([]);
 
   useEffect(() => {
     // Set token
+    if("token" in spotify){
+      setToken(spotify.token);
+    }
+
     let _token = hash.access_token; 
     if (_token) {
       setToken(_token)
+      setSpotify('token', _token, {path: '/', maxAge: 3500})
+      
     }
-    if(cookies.bridge.ip && cookies.bridge.username ){
+    if("bridge" in hue && "ip" in hue.bridge && "username" in hue.bridge){
       const conBridge = async () => {
         const response = await fetch('/api/bridgeAuth', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ bridge: cookies.bridge }),
+          body: JSON.stringify({ bridge: hue.bridge }),
         });
         const body = await response.text();
         setBridgeOK(true);
@@ -47,7 +53,7 @@ function App() {
                                 username: body.bridge.username,
                                 ip: body.bridge.ip
                               };
-      setCookie('bridge', newBridgeCookie, {path: '/'});
+      setHue('bridge', newBridgeCookie, {path: '/'});
     }
     if (response.status !== 200) throw Error(body.message);
     return body;
@@ -135,10 +141,10 @@ function App() {
             Connect Hue Bridge
         </button>)}
         
-        {bridgeOK && (
+        {/* {bridgeOK && (
         <div>
-            Connected to {cookies.bridge.name} : {cookies.bridge.ip}
-        </div>)}
+            Connected to {hue.bridge.name} : {hue.bridge.ip}
+        </div>)} */}
 
         {lights && (
           lights.map((l, i) => <Lightbulb key={i} {...l}/>)
@@ -222,17 +228,17 @@ window.location.hash = "";
 
 function analysis(state, token) {
   console.log(state)
-  if (state.isPlaying === false){
-    console.log("black")
-  }
-  else{
-    $.ajax({
-      url: "https://api.spotify.com/v1/audio-analysis/" + state.track.id,
-      type: "GET",
-      beforeSend: (xhr) => {
-        xhr.setRequestHeader("Authorization", "Bearer " + token);
-      },
-      success: (res) => {
+  $.ajax({
+    url: "https://api.spotify.com/v1/audio-analysis/" + state.track.id,
+    type: "GET",
+    beforeSend: (xhr) => {
+      xhr.setRequestHeader("Authorization", "Bearer " + token);
+    },
+    success: (res) => {
+      if (state.isPlaying === false){
+        sendSegments([{start: 0, duration: 1, loudness: 1}]);
+      }
+      else{
         let segments = res.segments.map(segment => {
           return {
             start: segment.start,
@@ -240,43 +246,26 @@ function analysis(state, token) {
             loudness: ((1 - (Math.min(Math.max(segment.loudness_max, -20), 0) / -20)) * 253) +1
           }
         })
-        console.log(segments)
-        var dur = segments[0].duration;
-        var bri = segments[0].loudness;
-        for (var i = 0; i < segments.length; i++){
-          dur = segments[i].duration;
-          bri = segments[i].loudness;
-          // var start = segments[i].start;
-          changeBri(1, bri);
-          changeBri(2, bri);
-          changeBri(3, bri);
-          sleep(dur);
-        }
-      },
-      error: (err) => {
-        console.log(err);
+        // console.log(segments);
+        sendSegments(segments);
       }
-    });  
-  }
-}
-function sleep(milliseconds) {
-  const date = Date.now();
-  let currentDate = null;
-  do {
-    currentDate = Date.now();
-  } while (currentDate - date < milliseconds);
+    },
+    error: (err) => {
+      console.log(err);
+    }
+  });  
 }
 
-const changeBri = async (id, bri) => {
-  const response = await fetch('/api/lightBrigtness', {
+const sendSegments = async (segments) => {
+  const response = await fetch('/api/sendSegments', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ id: id,
-                           state: {bri: bri} }),
+    body: JSON.stringify({ segments: segments }),
   });
   const body = await response.text();
+  console.log(body)
   //post the data to server
 }
 
