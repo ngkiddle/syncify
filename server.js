@@ -71,21 +71,20 @@ app.post('/api/changeBrightness', (req, res) => {
 //recieve spotify segment data
 app.post('/api/sendSegments', (req, res) => {
     const segs = req.body.segments;
-    console.log(segs)
-    const syncPls = async (segs) => {
-        console.log("recieved second state update")
+    const progress = req.body.progress;
+    const trackDur = req.body.trackDur;
+    const t = req.body.time;
+    const syncPls = async (segs, progress, trackDur, t) => {
         if (sync !== undefined){
             thrd.Thread.terminate(sync);
         }
         sync = await thrd.spawn(new thrd.Worker("./sync.js"));
-        // console.log(sync)
-        thrd.Thread.events(sync).subscribe(event => console.log("Thread event:", event))
-        const result = await sync(segs, bridge);
+        const result = await sync(segs, progress, trackDur, t);
         await thrd.Thread.terminate(sync);
         sync = undefined;
         res.send(result)
     }
-    syncPls(segs);
+    syncPls(segs, progress, trackDur, t);
 });
 
 

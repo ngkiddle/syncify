@@ -106,18 +106,8 @@ function App() {
                 syncExternalDeviceInterval={1}
                 persistDeviceSelection={true}
                 name="Syncify"
-                callback={(State) => {
-                          analysis(State, token)
-                          // if (analyzeSync){
-                          //   await Thread.terminate(analyzeSync);
-                          // }
-                          // const analyzeSync = await spawn(new Worker("./sync.js"));
-                          // const updated = await analyzeSync(State)
-                          // Thread.events(analyzeSync).subscribe(event => console.log("Thread event:", event))
-
-                          // await Thread.terminate(analyzeSync);
-                        }}
-                uris={['spotify:artist:1HUSv86hnnIK5uUivIFmVM']}
+                callback={(State) => {analysis(State, token)}}
+                // uris={['spotify:artist:1HUSv86hnnIK5uUivIFmVM']}
                 styles={{
                   height: '35%',
                   activeColor: '#F0FFF0',
@@ -141,10 +131,10 @@ function App() {
             Connect Hue Bridge
         </button>)}
         
-        {/* {bridgeOK && (
+        {bridgeOK && (
         <div>
             Connected to {hue.bridge.name} : {hue.bridge.ip}
-        </div>)} */}
+        </div>)}
 
         {lights && (
           lights.map((l, i) => <Lightbulb key={i} {...l}/>)
@@ -227,6 +217,10 @@ const hash = window.location.hash
 window.location.hash = "";
 
 function analysis(state, token) {
+  var d = new Date();
+  var t = d.getTime();
+  var progress = state.progressMs;
+  var trackDur = state.track.durationMs;
   console.log(state)
   $.ajax({
     url: "https://api.spotify.com/v1/audio-analysis/" + state.track.id,
@@ -236,18 +230,38 @@ function analysis(state, token) {
     },
     success: (res) => {
       if (state.isPlaying === false){
-        sendSegments([{start: 0, duration: 1, loudness: 1}]);
+        sendSegments( {0: {duration: 1, loudness: 1, tempo: 0}}, progress, trackDur, t);
       }
       else{
-        let segments = res.segments.map(segment => {
-          return {
-            start: segment.start,
-            duration: segment.duration *1000,
-            loudness: ((1 - (Math.min(Math.max(segment.loudness_max, -20), 0) / -20)) * 253) +1
+        var sections = []; 
+        console.log(res.sections)
+        for (var s = 0; s < res.sections.length; s++){
+          var section = res.sections[s];
+          var tempo = section.tempo;
+          var sectionEnd = section.start*1000 + section.duration*1000;
+          sections.push({end: sectionEnd, tempo: tempo});
+        }
+        console.log(sections[0])
+
+        var segments = {};
+        var prevDur = 0;
+        var prevStart = 0;
+        for (var i = 0; i < res.segments.length; i++){
+          var seg = res.segments[i];
+          var dur = Math.round(seg.duration*1000);
+          var start = prevStart + prevDur;
+          var db = Math.round(((1 - (Math.min(Math.max(seg.loudness_max, -20), 0) / -20)) * 253) +1)
+          if (start+dur > sections[0].end && sections.length > 1){
+            sections.shift()
           }
-        })
-        // console.log(segments);
-        sendSegments(segments);
+          var curTempo = sections[0].tempo;
+
+          segments[start] = {duration: dur, loudness: db, tempo: curTempo};
+          prevDur = dur;
+          prevStart = start;
+        }
+        console.log(segments)
+        sendSegments(segments, progress, trackDur, t);
       }
     },
     error: (err) => {
@@ -256,13 +270,17 @@ function analysis(state, token) {
   });  
 }
 
-const sendSegments = async (segments) => {
+const sendSegments = async (segments, progress, trackDur, t) => {
   const response = await fetch('/api/sendSegments', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ segments: segments }),
+    body: JSON.stringify({ 
+      segments: segments,
+      progress: progress,
+      trackDur: trackDur,
+      time: t }),
   });
   const body = await response.text();
   console.log(body)
