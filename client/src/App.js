@@ -4,83 +4,73 @@ import { css, jsx, Global } from '@emotion/react'
 import React, { useState, useEffect } from 'react';
 import * as $ from "jquery";
 import SpotifyPlayer from 'react-spotify-web-playback';
-import Lightbulb from './components/lightbulbs.js';
 import { useCookies } from 'react-cookie';
 
+import Lightbulb from './components/lightbulbs.js';
+import HueOptions from './components/hueOptions.js'
 
 function App() {
   const [hue, setHue] = useCookies(['bridge']);
-  const [spotify, setSpotify] = useCookies(['spotify']);
+  const [spotifyAccess, setSpotifyAccess] = useCookies(['spotify_access']);
+  const [spotifyRefresh, setSpotifyRefresh] = useCookies(['spotify_refresh']);
   const [bridgeOK, setBridgeOK] = useState(false);
   const [token, setToken] = useState("");
   const [lights, setLights] = useState([]);
+  const [options, setOptions] = useState({brightnessOnly: false,
+                                          brightnessThreshold: -28,
+                                          colorScheme: 0,
+                                          });
+
+  const toggle = () => {
+    if(options.brightnessOnly){
+      setOptions({brightnessOnly: false,
+                  brightnessThreshold: options.brightnessThreshold,
+                  colorScheme: options.colorScheme,})
+    }
+    else{
+      setOptions({brightnessOnly: true,
+        brightnessThreshold: options.brightnessThreshold,
+        colorScheme: options.colorScheme,})
+    }
+  }
 
   useEffect(() => {
-    // Set token
-    if("token" in spotify){
-      setToken(spotify.token);
+    if("spotify_access" in spotifyAccess && spotifyAccess.spotify_access !== "undefined"){
+      setToken(spotifyAccess.spotify_access);
     }
-
-    let _token = hash.access_token; 
-    if (_token) {
-      setToken(_token)
-      setSpotify('token', _token, {path: '/', maxAge: 3500})
-      
+    else{
+      if("spotify_refresh" in spotifyRefresh && spotifyRefresh.spotify_refresh !== "undefined"){
+        const renewSpotConnect = async () => {
+          var access_token = await refreshSpotifyTokens(spotifyRefresh.spotify_refresh)         
+          setSpotifyAccess('spotify_access', access_token.access_token, {path: '/', maxAge: 3500})
+          setToken(spotifyAccess.spotify_access)
+        }
+        renewSpotConnect()
+      }
+      else{
+        const newSpotConnect = async () => {
+          var _code = await hash();
+          if(_code){
+            var _tokens = await getSpotifyTokens(_code);
+            var access_token = _tokens.access_token;
+            var refresh_token = _tokens.refresh_token;
+            if (access_token) {
+              setToken(access_token)
+              setSpotifyAccess('spotify_access', access_token, {path: '/', maxAge: 3500})
+              setSpotifyRefresh('spotify_refresh', refresh_token, {path: '/'})
+              window.location.search = ""
+            }
+          }
+        }
+        newSpotConnect();
+      }
     }
     if("bridge" in hue && "ip" in hue.bridge && "username" in hue.bridge){
-      const conBridge = async () => {
-        const response = await fetch('/api/bridgeAuth', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ bridge: hue.bridge }),
-        });
-        const body = await response.text();
+      if(establishConnection(hue)){
         setBridgeOK(true);
-        //post the data to server
       }
-      conBridge();
     }
   },[]);
-
-  async function connectBridge(){
-    const response = await fetch('/api/discBridges');
-    const body = await response.json();
-    setBridgeOK(body.connected);
-    if(body.connected){
-      const newBridgeCookie = { name: body.bridge.name,
-                                username: body.bridge.username,
-                                ip: body.bridge.ip
-                              };
-      setHue('bridge', newBridgeCookie, {path: '/'});
-    }
-    if (response.status !== 200) throw Error(body.message);
-    return body;
-  };
-  
-  async function getLights(){
-    const response = await fetch('/api/allLights');
-    const body = await response.json();
-    if (response.status !== 200) throw Error(body.message);
-    var l = [];
-    for (var i = 0; i < body.length; i++){
-      var b = body[i];
-      var bulb = {};
-      bulb['id'] = b.data.id;
-      bulb['name'] = b.data.name;
-      bulb['color'] = b.data.state.xy;
-      bulb['bri'] = b.data.state.bri;
-      var on = "off";
-      if (b.data.state.on){
-        on = "on";
-      }
-      bulb['state'] = on;
-      l.push(bulb);
-    }
-    setLights(l);
-    return l;
-  };
 
   return (
     <div className="App">
@@ -88,13 +78,13 @@ function App() {
       <header className="App-header">
         <h1>Syncify</h1>
         {!token && (
-          <a
+          <button
+            onClick={async () => {await connectSpotify()}}
             className="btn centerH btn--loginApp-link"
             styles={css`top: 10%;`}
-            href={`${authEndpoint}?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scopes.join("%20")}&response_type=token&show_dialog=true`}
           >
             Login to Spotify
-          </a>
+          </button>
         )}
         {token && (
           <div className="centerH" styles={css`height: 50%; width: 100%; top: 10%`}>
@@ -106,18 +96,18 @@ function App() {
                 syncExternalDeviceInterval={1}
                 persistDeviceSelection={true}
                 name="Syncify"
-                callback={(State) => {analysis(State, token)}}
+                callback={(State) => {analysis(State, token, options)}}
                 // uris={['spotify:artist:1HUSv86hnnIK5uUivIFmVM']}
                 styles={{
-                  height: '35%',
-                  activeColor: '#F0FFF0',
-                  bgColor: '#F0FFF0',
-                  color: '#778899',
+                  height: '80px',
+                  activeColor: 'GhostWhite',
+                  bgColor: '',
+                  color: 'GhostWhite',
                   loaderColor: '#F0FFF0',
-                  trackArtistColor: '#778899',
-                  trackNameColor: '#778899',
-                  sliderColor: '#F0FFF0',
-                  sliderHandleColor: '#F0FFF0',
+                  trackArtistColor: 'GhostWhite',
+                  trackNameColor: 'GhostWhite',
+                  sliderColor: 'DarkMagenta',
+                  sliderHandleColor: 'GhostWhite',
                   sliderHeight: 5,
                   sliderHandleBorderRadius: 7
                 }}
@@ -127,24 +117,27 @@ function App() {
         {!bridgeOK && (
         <button className="btn centerH btn--loginApp-link"
                 styles={css`width: 10%;`}
-                onClick={async () => await connectBridge()}>
+                onClick={async () => {
+                  const newBridgeCookie = await connectBridge();
+                  setHue('bridge', newBridgeCookie, {path: '/'});
+                  setBridgeOK(true);
+                }}>
             Connect Hue Bridge
         </button>)}
         
         {bridgeOK && (
-        <div>
-            Connected to {hue.bridge.name} : {hue.bridge.ip}
-        </div>)}
+        <HueOptions tag="Brightness Only" toggle={toggle} checked={options.brightnessOnly}/>)}
 
         {lights && (
           lights.map((l, i) => <Lightbulb key={i} {...l}/>)
         )}
 
-  
-
         {bridgeOK && (
         <button className="btn centerH btn--loginApp-link"
-                onClick={async () => await getLights()}>
+                onClick={async () => {
+                  const l = await getLights();
+                  setLights(l);
+                }}>
             Get Lights
         </button>)}
       </header>
@@ -157,10 +150,10 @@ const global = css`
   body{
       margin:0px;
       padding: 0px;
-      background-color: LightSlateGrey;
+      background-image: linear-gradient(45deg, DarkMagenta, Coral);
       width: 100%;
       height: 100%;
-      color: HoneyDew;
+      color: GhostWhite;
   }
   html{
       font-family: 'Ubuntu', sans-serif; 
@@ -176,12 +169,12 @@ const global = css`
     display: block;
     margin: auto;
     width: 50%;
-    border: 3px solid green;
+    border: 1px solid GhostWhite;
   }
   .btn{
-    border: 2px solid HoneyDew;
+    border: 2px solid GhostWhite;
     border-radius: 5px;
-    color: HoneyDew;
+    color: GhostWhite;
     text-decoration: none;
     padding: 5px;
     background-color: rgba(0,0,0,0);
@@ -191,32 +184,7 @@ const global = css`
     font-size: 12pt;
   }`;
   
-const authEndpoint = 'https://accounts.spotify.com/authorize';
-const clientId = "00687daa92064794bc08458536d97d0d";
-const redirectUri = "http://localhost:3000/";
-const scopes = [
-  "user-read-currently-playing",
-  "user-read-playback-state",
-  "user-read-email",
-  "user-read-private",
-  "app-remote-control",
-  "streaming",
-  "user-modify-playback-state"
-];
-// Get the hash of the url
-const hash = window.location.hash
-  .substring(1)
-  .split("&")
-  .reduce(function(initial, item) {
-    if (item) {
-      var parts = item.split("=");
-      initial[parts[0]] = decodeURIComponent(parts[1]);
-    }
-    return initial;
-  }, {});
-window.location.hash = "";
-
-function analysis(state, token) {
+function analysis(state, token, options) {
   var d = new Date();
   var t = d.getTime();
   var progress = state.progressMs;
@@ -230,61 +198,204 @@ function analysis(state, token) {
     },
     success: (res) => {
       if (state.isPlaying === false){
-        sendSegments( {0: {duration: 1, loudness: 1, tempo: 0}}, progress, trackDur, t);
+        sendSegments( 
+          {0: {duration: 1, loudness: 1}},
+          {0: {duration: 1, tempo: 1}},
+          progress, trackDur, t, options
+        );
       }
       else{
-        var sections = []; 
-        console.log(res.sections)
-        for (var s = 0; s < res.sections.length; s++){
-          var section = res.sections[s];
-          var tempo = section.tempo;
-          var sectionEnd = section.start*1000 + section.duration*1000;
-          sections.push({end: sectionEnd, tempo: tempo});
-        }
-        console.log(sections[0])
-
-        var segments = {};
-        var prevDur = 0;
-        var prevStart = 0;
-        for (var i = 0; i < res.segments.length; i++){
-          var seg = res.segments[i];
-          var dur = Math.round(seg.duration*1000);
-          var start = prevStart + prevDur;
-          var db = Math.round(((1 - (Math.min(Math.max(seg.loudness_max, -20), 0) / -20)) * 253) +1)
-          if (start+dur > sections[0].end && sections.length > 1){
-            sections.shift()
-          }
-          var curTempo = sections[0].tempo;
-
-          segments[start] = {duration: dur, loudness: db, tempo: curTempo};
-          prevDur = dur;
-          prevStart = start;
-        }
+        const segments = createSegmentData(res.segments);
+        const sections = createSectionData(res.sections);
         console.log(segments)
-        sendSegments(segments, progress, trackDur, t);
+        console.log(sections)
+        sendSegments(segments, sections, progress, trackDur, t, options);
       }
     },
     error: (err) => {
       console.log(err);
+      
     }
   });  
 }
 
-const sendSegments = async (segments, progress, trackDur, t) => {
-  const response = await fetch('/api/sendSegments', {
+const authEndpoint = 'https://accounts.spotify.com/authorize';
+  const clientId = "00687daa92064794bc08458536d97d0d";
+  const clientSec = "ec8206638bbc49ab8f68bae07ed8eae2"
+  const redirectUri = "http://localhost:3000/";
+  const scopes = [
+    "user-read-currently-playing",
+    "user-read-playback-state",
+    "user-read-email",
+    "user-read-private",
+    "app-remote-control",
+    "streaming",
+    "user-modify-playback-state"
+  ];
+
+async function connectSpotify(){
+  window.location = `${authEndpoint}?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&scope=${scopes.join("%20")}&state=34fFs29kd09`
+}
+
+const hash = async() => {
+  const code = window.location.search
+  .substring(1)
+  .split("&")
+  .reduce(function(initial, item) {
+    if (item) {
+      var parts = item.split("=");
+      initial[parts[0]] = decodeURIComponent(parts[1]);
+    }
+    // window.location.search = "";
+    return initial;
+  }, {});
+  return code.code;
+}  
+
+async function getSpotifyTokens(code){
+  const res = $.ajax(
+    {
+      method: "POST",
+      url: "https://accounts.spotify.com/api/token",
+      data: {
+        "grant_type":    "authorization_code",
+        "code":          code,
+        "redirect_uri":  redirectUri,
+        "client_secret": clientSec,
+        "client_id":     clientId,
+      },
+      success: function(result) {
+        console.log(result);
+        return result
+      },
+    }
+  );
+  return res;
+}
+
+async function refreshSpotifyTokens(refresh_token){
+  const result = $.ajax(
+    {
+      method: "POST",
+      url: "https://accounts.spotify.com/api/token",
+      data: {
+        "grant_type":   "refresh_token",
+        "refresh_token": refresh_token,
+        "redirect_uri":  redirectUri,
+        "client_secret": clientSec,
+        "client_id":     clientId,
+      },
+      success: function(result) {
+        return result;
+      },
+    }
+  );
+  console.log(result);
+  return result;
+}
+
+async function connectBridge(){
+  const response = await fetch('/api/discBridges');
+  const body = await response.json();
+  if(body.connected){
+    const newBridgeCookie = { name: body.bridge.name,
+                              username: body.bridge.username,
+                              ip: body.bridge.ip
+                            };
+    return newBridgeCookie;
+  }
+  if (response.status !== 200) throw Error(body.message);
+};
+
+async function establishConnection(hue){
+    const response = await fetch('/api/bridgeAuth', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ bridge: hue.bridge }),
+    });
+    const body = await response;
+    if (body.status === 200){
+      return true
+    }
+    else{
+      return false;
+    }
+    //post the data to server
+}
+
+async function getLights(){
+  const response = await fetch('/api/allLights');
+  const body = await response.json();
+  if (response.status !== 200) throw Error(body.message);
+  var l = [];
+  for (var i = 0; i < body.length; i++){
+    var b = body[i];
+    var bulb = {};
+    bulb['id'] = b.data.id;
+    bulb['name'] = b.data.name;
+    bulb['color'] = b.data.state.xy;
+    bulb['bri'] = b.data.state.bri;
+    var on = "off";
+    if (b.data.state.on){
+      on = "on";
+    }
+    bulb['state'] = on;
+    l.push(bulb);
+  }
+  return l;
+};
+
+const sendSegments = async (segments, sections, progress, trackDur, t, options) => {
+  const response = await fetch('/api/sendAnalysis', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ 
       segments: segments,
+      sections: sections,
       progress: progress,
       trackDur: trackDur,
-      time: t }),
+      time: t,
+      options: options}),
   });
   const body = await response.text();
   console.log(body)
   //post the data to server
 }
 
-export default App;
+function createSegmentData(segs){
+  var segments = {};
+  var prevDur = 0;
+  var prevStart = 0;
+  for (var i = 0; i < segs.length; i++){
+    var seg = segs[i];
+    var dur = Math.round(seg.duration*1000);
+    var start = prevStart + prevDur;
+    var db = Math.round(((1 - (Math.min(Math.max(seg.loudness_max, -28), 0) / -28)) * 253) +1)
+    segments[start] = {duration: dur, loudness: db};
+    prevDur = dur;
+    prevStart = start;
+  }
+  return segments;
+}
+
+function createSectionData(sects){
+  var sections = {};
+  var prevDur = 0;
+  var prevStart = 0;
+  for (var i = 0; i < sects.length; i++){
+    var sect = sects[i];
+    var dur = Math.round(sect.duration*1000);
+    var start = prevStart + prevDur;
+    var tempo = sect.tempo;
+    sections[start] = {duration: dur, tempo: tempo};
+    prevDur = dur;
+    prevStart = start;
+  }
+  return sections;
+}
+
+export default App

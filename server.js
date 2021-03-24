@@ -7,7 +7,8 @@ const discovery = require('node-hue-api').discovery;
 const thrd = require("threads");
 const port = process.env.PORT || 5000;
 var hueapi = {}
-var sync = undefined;
+var segments = undefined;
+var sections = undefined;
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -58,33 +59,50 @@ app.get('/api/allLights', (req, res) => {
     })
 });
 
-//change a light's brightness
-app.post('/api/changeBrightness', (req, res) => {
+//change a light's state
+app.post('/api/setLight', (req, res) => {
     const id = req.body.id;
     const state = req.body.state;
-    // console.log(id + " : " + state.bri)
     const result = hueapi.lights.setLightState(id, state);
-    // console.log(result);
     res.send(result)
 });
 
 //recieve spotify segment data
-app.post('/api/sendSegments', (req, res) => {
+app.post('/api/sendAnalysis', (req, res) => {
     const segs = req.body.segments;
+    const sects = req.body.sections;
     const progress = req.body.progress;
     const trackDur = req.body.trackDur;
     const t = req.body.time;
-    const syncPls = async (segs, progress, trackDur, t) => {
-        if (sync !== undefined){
-            thrd.Thread.terminate(sync);
+    const options = req.body.options;
+    console.log(options)
+
+    const syncPls = async (segs, sects, progress, trackDur, t, options) => {
+        if (sections !== undefined){
+            thrd.Thread.terminate(sections);
+            sections = undefined;
         }
-        sync = await thrd.spawn(new thrd.Worker("./sync.js"));
-        const result = await sync(segs, progress, trackDur, t);
-        await thrd.Thread.terminate(sync);
-        sync = undefined;
-        res.send(result)
+        if (segments !== undefined){
+            thrd.Thread.terminate(segments);
+            segments = undefined;
+        }
+        console.log(options.brightnessOnly)
+        if(options.brightnessOnly === false){
+            sections = await thrd.spawn(new thrd.Worker("./sections.js"));
+        }
+        segments = await thrd.spawn(new thrd.Worker("./segments.js"));
+
+        if(options.brightnessOnly === false){
+            sections(sects, progress, trackDur, t);
+        }
+        await segments(segs, progress, trackDur, t);
+
+        await thrd.Thread.terminate(sections);
+        sections = undefined;
+        await thrd.Thread.terminate(segments);
+        segments = undefined;
     }
-    syncPls(segs, progress, trackDur, t);
+    syncPls(segs, sects, progress, trackDur, t, options);
 });
 
 
