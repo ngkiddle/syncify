@@ -1,7 +1,7 @@
 const bridgesReducer = (state = [], action) => {
     switch(action.type){
         case 'REFRESH BRIDGES':
-            return [...action.payload]
+            return action.payload
         default:
             return state;
     }
