@@ -131,7 +131,6 @@ function App() {
         <div className="option-menu">
           {bridges.map((b) => <Bridge key={b.config.name} name={b.config.name} ip={b.ipaddress} connected={bridgeOK}/>)}
         </div>
-
      )}
       
       {bridgeOK && (
