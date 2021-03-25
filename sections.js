@@ -1,7 +1,7 @@
 import { expose } from "threads/worker"
 const thrd = require("threads");
 
-expose(async function sections(sections, progress, trackDur, t){
+expose(async function sections(sections, progress, trackDur, t, lights){
     var d = new Date();
     var latency = d.getTime() - t;
     var compensate = progress + latency;
@@ -15,10 +15,10 @@ expose(async function sections(sections, progress, trackDur, t){
       var dur = sections[ms].duration;
       var tempo = sections[ms].tempo;
       const bpm = await thrd.spawn(new thrd.Worker("./tempo.js"));
-      bpm(tempo);      
+      bpm(tempo, lights);      
       console.log("Sec:   " + ms/1000 + "  \t|   Tempo:   " + tempo)
       if (lag){
-        sleep(dur -adjust);
+        sleep(dur - adjust);
         lag = false;
       }
       else{
@@ -30,9 +30,10 @@ expose(async function sections(sections, progress, trackDur, t){
       ms += dur;
     }
     console.log("=============== FELL OUT OF SECTIONS LOOP ================")
-});
+    await thrd.Thread.terminate(bpm);
 
-  
+  });
+
 function sleep(milliseconds) {
   const date = Date.now();
   let currentDate = null;

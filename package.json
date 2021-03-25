@@ -3,8 +3,11 @@
   "version": "0.0.1",
   "scripts": {
     "client": "cd client && npm start",
+    "client_build": "cd client && npm build",
     "server": "nodemon server.js",
-    "dev": "concurrently --kill-others-on-fail \"npm run server\" \"npm run client\""
+    "dev": "concurrently --kill-others-on-fail \"npm run server\" \"npm run client\"",
+    "build": "concurrently --kill-others-on-fail \"npm run server\" \"npm run client_build\""
+
   },
   "dependencies": {
     "body-parser": "^1.18.3",

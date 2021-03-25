@@ -1,12 +1,12 @@
 import { expose } from "threads/worker"
 const fetch = require('node-fetch');
 
-expose (async function bpm(tempo){
+expose (async function bpm(tempo, lights){
     while(true){
         var xy = rgbToXY();
-        await changeColor(1, xy);
-        await changeColor(2, xy);
-        await changeColor(3, xy);
+        for (var i = 0; i < lights.length; i++){
+          await changeColor(lights[i], xy);
+        }
         sleep(60/tempo * 1000)
     }
 })
@@ -17,20 +17,13 @@ const changeColor = async (id, xy) => {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ id: id,
-                              state: {xy: xy} }),
+      body: JSON.stringify({
+        id: id,
+        state: {xy: xy}
+      })
     });
-    //post the data to server
   }
-  
-  function sleep(milliseconds) {
-    const date = Date.now();
-    let currentDate = null;
-    do {
-      currentDate = Date.now();
-    } while (currentDate - date < milliseconds);
-  }
-  
+    
   function rgbToXY(){
     let red = Math.random() % 255;
     let green = Math.random() % 255;
@@ -54,4 +47,12 @@ const changeColor = async (id, xy) => {
     Y = y * 65536
   
     return [x, y];
+  }
+  
+  function sleep(milliseconds) {
+    const date = Date.now();
+    let currentDate = null;
+    do {
+      currentDate = Date.now();
+    } while (currentDate - date < milliseconds);
   }

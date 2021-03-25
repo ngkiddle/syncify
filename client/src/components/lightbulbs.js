@@ -1,26 +1,32 @@
 import React from 'react';
 // this comment tells babel to convert jsx to calls to a function called jsx instead of React.createElement
 /** @jsx jsx */
-import { css, jsx } from '@emotion/react'
-const bulbSVG = require('./../images/lightbulb.svg');
+import { css, jsx } from '@emotion/react';
+import Switch from 'react-ios-switch';
+import {useDispatch} from 'react-redux';
+import {toggleLight} from './../actions';
 
-function Lightbulb({id, name, color, state, bri}){
+function Lightbulb({id, name, bri, color, sync, toggle, index}){
     const rgb = xyBriToRgb(color[0], color[1], bri)
-    console.log(rgb)
     const rgbString = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`
+    const dispatch = useDispatch();
 
-
-    const container = css`border: 4px solid ${rgbString}; border-radius: 20px; width: 20%; display: inline-block; margin: 1%;`;
-    const svgStyle = css`margin: 5px;`;
-    const nameStyle = css`color: ${rgbString}; float: left; margin: 5px;`;
-    const stateStyle = css`color: ${rgbString}; float: right; display: inline-block; margin: 5px;`;
-    return(
-        <div css={container}>
-            <img src={bulbSVG} alt={name}/>
-            <div css={nameStyle}>{name}</div>
-            <div css={stateStyle}>{state}</div>
+    const grid =  css`
+    display: grid;
+    grid-template-columns: 90% 10%;
+    padding: 3%;`;
+    const item = css`line-height: 2; font-size: 14pt;`;
+    
+    return (
+        <div css={grid}>
+            <div css={item}>{name}</div>
+            <Switch
+                checked={sync}
+                onColor={rgbString}
+                onChange={() => {dispatch(toggleLight(id))}}
+            />
         </div>
-    )
+    );
 }
 
 function xyBriToRgb(x, y, bri){

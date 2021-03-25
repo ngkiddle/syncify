@@ -6,33 +6,28 @@ import * as $ from "jquery";
 import SpotifyPlayer from 'react-spotify-web-playback';
 import { useCookies } from 'react-cookie';
 
+import {useSelector, useDispatch} from 'react-redux';
+import {refreshBridges, refreshLights, toggleBridgeOK, selectBridge} from './actions';
+
 import Lightbulb from './components/lightbulbs.js';
-import HueOptions from './components/hueOptions.js'
+import HueOption from './components/hueOptions.js'
+import Bridge from './components/bridge.js'
+const syncify = require('./images/Syncify.svg');
+
 
 function App() {
+  const lights = useSelector(state => state.lights);
+  const options = useSelector(state => state.options);
+  const bridges = useSelector(state => state.bridges);
+  const bridge = useSelector(state => state.bridge);
+  const bridgeOK = useSelector(state => state.bridgeOK);
+
+  const dispatch = useDispatch();
+
   const [hue, setHue] = useCookies(['bridge']);
   const [spotifyAccess, setSpotifyAccess] = useCookies(['spotify_access']);
   const [spotifyRefresh, setSpotifyRefresh] = useCookies(['spotify_refresh']);
-  const [bridgeOK, setBridgeOK] = useState(false);
   const [token, setToken] = useState("");
-  const [lights, setLights] = useState([]);
-  const [options, setOptions] = useState({brightnessOnly: false,
-                                          brightnessThreshold: -28,
-                                          colorScheme: 0,
-                                          });
-
-  const toggle = () => {
-    if(options.brightnessOnly){
-      setOptions({brightnessOnly: false,
-                  brightnessThreshold: options.brightnessThreshold,
-                  colorScheme: options.colorScheme,})
-    }
-    else{
-      setOptions({brightnessOnly: true,
-        brightnessThreshold: options.brightnessThreshold,
-        colorScheme: options.colorScheme,})
-    }
-  }
 
   useEffect(() => {
     if("spotify_access" in spotifyAccess && spotifyAccess.spotify_access !== "undefined"){
@@ -55,92 +50,123 @@ function App() {
             var access_token = _tokens.access_token;
             var refresh_token = _tokens.refresh_token;
             if (access_token) {
-              setToken(access_token)
-              setSpotifyAccess('spotify_access', access_token, {path: '/', maxAge: 3500})
-              setSpotifyRefresh('spotify_refresh', refresh_token, {path: '/'})
-              window.location.search = ""
+              setToken(access_token);
+              setSpotifyAccess('spotify_access', access_token, {path: '/', maxAge: 3500});
+              setSpotifyRefresh('spotify_refresh', refresh_token, {path: '/'});
+              window.location.search = "";
             }
           }
         }
         newSpotConnect();
       }
     }
+    
+    const getBulbs = async () => {
+      var l = await getLights();
+      dispatch(refreshLights(l));
+    }
+
     if("bridge" in hue && "ip" in hue.bridge && "username" in hue.bridge){
       if(establishConnection(hue)){
-        setBridgeOK(true);
+        dispatch(selectBridge(hue))
+        dispatch(toggleBridgeOK(true))
+        getBulbs();
       }
     }
-  },[]);
+    else{
+      if("ip" in bridge && "username" in bridge && "name" in bridge){
+        setHue('bridge', bridge, {path: '/'})
+        dispatch(toggleBridgeOK(true))
+        establishConnection(bridge);
+        getBulbs();
+      }
+      var b = getBridges().then(b => {
+        dispatch(refreshBridges(b))
+      });
+    }
+  },[bridge]);
 
   return (
     <div className="App">
-       <Global styles={global}/>
-      <header className="App-header">
-        <h1>Syncify</h1>
-        {!token && (
-          <button
-            onClick={async () => {await connectSpotify()}}
-            className="btn centerH btn--loginApp-link"
-            styles={css`top: 10%;`}
-          >
-            Login to Spotify
-          </button>
-        )}
-        {token && (
-          <div className="centerH" styles={css`height: 50%; width: 100%; top: 10%`}>
-          <SpotifyPlayer
-                token={token}
-                autoPlay={false}
-                magnifySliderOnHover={true}
-                syncExternalDevice={true}
-                syncExternalDeviceInterval={1}
-                persistDeviceSelection={true}
-                name="Syncify"
-                callback={(State) => {analysis(State, token, options)}}
-                // uris={['spotify:artist:1HUSv86hnnIK5uUivIFmVM']}
-                styles={{
-                  height: '80px',
-                  activeColor: 'GhostWhite',
-                  bgColor: '',
-                  color: 'GhostWhite',
-                  loaderColor: '#F0FFF0',
-                  trackArtistColor: 'GhostWhite',
-                  trackNameColor: 'GhostWhite',
-                  sliderColor: 'DarkMagenta',
-                  sliderHandleColor: 'GhostWhite',
-                  sliderHeight: 5,
-                  sliderHandleBorderRadius: 7
-                }}
-          />
+      <Global styles={global}/>
+      <img className="centerH" css={css`width: 30%`} src={syncify} alt="Syncify"/>
+      {!token && (
+        <button
+          onClick={async () => {await connectSpotify()}}
+          className="btn centerH"
+          styles={css`top: 10%;`}
+        >
+          Login to Spotify
+        </button>
+      )}
+      {token && (
+        <div className="centerH player" styles={css`height: 50%; width: 100%; top: 10%;`}>
+        <SpotifyPlayer
+              token={token}
+              autoPlay={false}
+              magnifySliderOnHover={true}
+              syncExternalDevice={true}
+              syncExternalDeviceInterval={1}
+              persistDeviceSelection={true}
+              name="Syncify"
+              callback={(State) => {analysis(State, token, options, lights)}}
+              styles={{
+                height: '80px',
+                activeColor: 'GhostWhite',
+                bgColor: 'rgba(255,255,255,0)',
+                color: 'GhostWhite',
+                loaderColor: '#F0FFF0',
+                trackArtistColor: 'GhostWhite',
+                trackNameColor: 'GhostWhite',
+                sliderColor: 'DarkMagenta',
+                sliderHandleColor: 'GhostWhite',
+                sliderHeight: 5,
+                sliderHandleBorderRadius: 7
+              }}
+        />
+        </div>
+      )}
+
+      {!bridgeOK && (
+        <div className="option-menu">
+          {bridges.map((b) => <Bridge key={b.config.name} name={b.config.name} ip={b.ipaddress} connected={bridgeOK}/>)}
+        </div>
+
+     )}
+      
+      {bridgeOK && (
+        <div className="centerH">
+          <h2>Sync Options</h2>
+          <div className="option-menu">
+            <HueOption 
+              tag="Change Bulb Colors" 
+              checked={options.colorShift}
+            />
+            <HueOption 
+              tag="Change Bulb Brightness" 
+              checked={options.brightnessShift}
+            />
           </div>
-        )}
-        {!bridgeOK && (
-        <button className="btn centerH btn--loginApp-link"
-                styles={css`width: 10%;`}
-                onClick={async () => {
-                  const newBridgeCookie = await connectBridge();
-                  setHue('bridge', newBridgeCookie, {path: '/'});
-                  setBridgeOK(true);
-                }}>
-            Connect Hue Bridge
-        </button>)}
-        
-        {bridgeOK && (
-        <HueOptions tag="Brightness Only" toggle={toggle} checked={options.brightnessOnly}/>)}
+        </div>
+      )}
 
-        {lights && (
-          lights.map((l, i) => <Lightbulb key={i} {...l}/>)
-        )}
+      {lights.length !== 0 && (
+        <div className="centerH">
+          <h2>Lights</h2>
+          <div className="option-menu">
+            {lights.map((li, i) => <Lightbulb key={li.name} {...li}/>)}
+          </div>
+        </div>
+      )}
 
-        {bridgeOK && (
-        <button className="btn centerH btn--loginApp-link"
-                onClick={async () => {
-                  const l = await getLights();
-                  setLights(l);
-                }}>
-            Get Lights
-        </button>)}
-      </header>
+      {bridgeOK &&  (
+      <button className="btn centerH"
+              onClick={async () => {
+                var l = await getLights();
+                dispatch(refreshLights(l));
+              }}>
+          Refresh Lights
+      </button>)}
     </div>
   );
 }
@@ -165,11 +191,22 @@ const global = css`
   h1{
       margin-left: 3%; 
   }
+  h2{
+    text-align: center;
+    margin-bottom: .5%;
+    margin-top: 5%;
+  }
   .centerH{
     display: block;
     margin: auto;
     width: 50%;
+  }
+  .player{
     border: 1px solid GhostWhite;
+    box-shadow: 5px 5px;
+    padding: 2%;
+    background-color: rgba(255,255,255,.1);
+    border-radius: 15px;
   }
   .btn{
     border: 2px solid GhostWhite;
@@ -177,14 +214,24 @@ const global = css`
     color: GhostWhite;
     text-decoration: none;
     padding: 5px;
-    background-color: rgba(0,0,0,0);
+    background-color: rgba(255,255,255,.1);
     text-align: center;
     width: 13%;
-    margin-top:1%;
+    margin-top:3%;
     font-size: 12pt;
+    box-shadow: 5px 5px
+  }
+  .option-menu{
+    margin: auto;
+    width: 500px;
+    border: 1px solid GhostWhite;
+    border-radius: 10px;
+    margin-top: 0%;
+    background-color: rgba(255,255,255,.1);
+    box-shadow: 5px 5px;
   }`;
   
-function analysis(state, token, options) {
+function analysis(state, token, options, lights) {
   var d = new Date();
   var t = d.getTime();
   var progress = state.progressMs;
@@ -197,11 +244,12 @@ function analysis(state, token, options) {
       xhr.setRequestHeader("Authorization", "Bearer " + token);
     },
     success: (res) => {
-      if (state.isPlaying === false){
+      const l = extractLightId(lights)
+      if (state.isPlaying === false){ 
         sendSegments( 
           {0: {duration: 1, loudness: 1}},
           {0: {duration: 1, tempo: 1}},
-          progress, trackDur, t, options
+          progress, trackDur, t, options, l
         );
       }
       else{
@@ -209,12 +257,11 @@ function analysis(state, token, options) {
         const sections = createSectionData(res.sections);
         console.log(segments)
         console.log(sections)
-        sendSegments(segments, sections, progress, trackDur, t, options);
+        sendSegments(segments, sections, progress, trackDur, t, options, l);
       }
     },
     error: (err) => {
       console.log(err);
-      
     }
   });  
 }
@@ -294,18 +341,15 @@ async function refreshSpotifyTokens(refresh_token){
   return result;
 }
 
-async function connectBridge(){
-  const response = await fetch('/api/discBridges');
+async function getBridges(){
+  const response = await fetch('/api/discAllBridges');
   const body = await response.json();
-  if(body.connected){
-    const newBridgeCookie = { name: body.bridge.name,
-                              username: body.bridge.username,
-                              ip: body.bridge.ip
-                            };
-    return newBridgeCookie;
+  if(body.bridges){
+    return body.bridges;
   }
   if (response.status !== 200) throw Error(body.message);
 };
+
 
 async function establishConnection(hue){
     const response = await fetch('/api/bridgeAuth', {
@@ -337,6 +381,8 @@ async function getLights(){
     bulb['name'] = b.data.name;
     bulb['color'] = b.data.state.xy;
     bulb['bri'] = b.data.state.bri;
+    bulb['sync'] = true;
+    bulb['index'] = i;
     var on = "off";
     if (b.data.state.on){
       on = "on";
@@ -347,7 +393,7 @@ async function getLights(){
   return l;
 };
 
-const sendSegments = async (segments, sections, progress, trackDur, t, options) => {
+const sendSegments = async (segments, sections, progress, trackDur, t, options, lights) => {
   const response = await fetch('/api/sendAnalysis', {
     method: 'POST',
     headers: {
@@ -359,7 +405,8 @@ const sendSegments = async (segments, sections, progress, trackDur, t, options) 
       progress: progress,
       trackDur: trackDur,
       time: t,
-      options: options}),
+      options: options,
+      lights: lights}),
   });
   const body = await response.text();
   console.log(body)
@@ -396,6 +443,16 @@ function createSectionData(sects){
     prevStart = start;
   }
   return sections;
+}
+
+function extractLightId(lights){
+  var l = [];
+  for (var i = 0; i < lights.length; i++){
+    if(lights[i].sync){
+      l.push(lights[i].id);
+    }
+  }
+  return l;
 }
 
 export default App

@@ -13,12 +13,29 @@ var sections = undefined;
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-
 var bridge = undefined;
 
 // Get a bridge and create a user
-app.get('/api/discBridges', (req, res) => {
-    disc.discoverAndCreateUser().then(b => {
+app.get('/api/discAllBridges', (req, res) => {
+    disc.discoverBridge().then(b => {
+        bridges = b;
+        console.log("bridges: " + bridges)
+        if (bridges){
+            res.send({ bridges: bridges });
+        }
+        else{
+            res.send({ bridges: false });
+        }
+    })
+    .catch(err => {
+        console.log(err)
+    })
+});
+
+app.post('/api/connectBridge', (req, res) => {
+    const ip = req.body.ip;
+    console.log(ip)
+    disc.discoverAndCreateUser(ip).then(b => {
         bridge = b;
         console.log("bridge: " + bridge)
         if (bridge){
@@ -67,7 +84,7 @@ app.post('/api/setLight', (req, res) => {
     res.send(result)
 });
 
-//recieve spotify segment data
+//recieve spotify analysis data
 app.post('/api/sendAnalysis', (req, res) => {
     const segs = req.body.segments;
     const sects = req.body.sections;
@@ -75,35 +92,45 @@ app.post('/api/sendAnalysis', (req, res) => {
     const trackDur = req.body.trackDur;
     const t = req.body.time;
     const options = req.body.options;
+    const lights = req.body.lights;
     console.log(options)
 
-    const syncPls = async (segs, sects, progress, trackDur, t, options) => {
-        if (sections !== undefined){
-            thrd.Thread.terminate(sections);
-            sections = undefined;
-        }
-        if (segments !== undefined){
-            thrd.Thread.terminate(segments);
-            segments = undefined;
-        }
-        console.log(options.brightnessOnly)
-        if(options.brightnessOnly === false){
+    const syncPls = async (segs, sects, progress, trackDur, t, options, lights) => {
+        await terminateThreads();
+        if(options.colorShift){
             sections = await thrd.spawn(new thrd.Worker("./sections.js"));
         }
-        segments = await thrd.spawn(new thrd.Worker("./segments.js"));
-
-        if(options.brightnessOnly === false){
-            sections(sects, progress, trackDur, t);
+        if(options.brightnessShift){
+            segments = await thrd.spawn(new thrd.Worker("./segments.js"));
         }
-        await segments(segs, progress, trackDur, t);
-
-        await thrd.Thread.terminate(sections);
-        sections = undefined;
-        await thrd.Thread.terminate(segments);
-        segments = undefined;
+        
+        if(options.colorShift && options.brightnessShift){
+            sections(sects, progress, trackDur, t, lights);
+            await segments(segs, progress, trackDur, t, lights);
+        }
+        else if(options.colorShift && !(options.brightnessShift)){
+            await sections(sects, progress, trackDur, t, lights);
+        }
+        else{
+            await segments(segs, progress, trackDur, t, lights);
+        }
+        terminateThreads();
     }
-    syncPls(segs, sects, progress, trackDur, t, options);
+    syncPls(segs, sects, progress, trackDur, t, options, lights);
 });
 
+async function terminateThreads(){
+    if (sections !== undefined){
+        thrd.Thread.terminate(sections);
+        sections = undefined;
+        console.log("KILLED SECTIONS")
+    }
+    if (segments !== undefined){
+        thrd.Thread.terminate(segments);
+        segments = undefined;
+        console.log("KILLED SEGMENTS")
+
+    }
+}
 
 app.listen(port, () => console.log(`Listening on port ${port}`));

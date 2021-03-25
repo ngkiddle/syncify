@@ -14,12 +14,11 @@ async function discoverBridge() {
     return null;
   } else {
     // Ignoring that you could have more than one Hue Bridge on a network as this is unlikely in 99.9% of users situations
-    return discoveryResults[0].ipaddress;
+    return discoveryResults//[0].ipaddress;
   }
 }
 
-async function discoverAndCreateUser() {
-  const ipAddress = await discoverBridge();
+async function discoverAndCreateUser(ipAddress) {
   console.log("press link button on device with ip: " + ipAddress);
   // Create an unauthenticated instance of the Hue API so that we can create a new user
   const unauthenticatedApi = await hueApi.createLocal(ipAddress).connect();
@@ -57,5 +56,5 @@ async function discoverAndCreateUser() {
   }
 }
 
-module.exports = {discoverAndCreateUser}
+module.exports = {discoverAndCreateUser, discoverBridge}
 
