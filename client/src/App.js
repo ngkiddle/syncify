@@ -269,7 +269,7 @@ function analysis(state, token, options, lights) {
 const authEndpoint = 'https://accounts.spotify.com/authorize';
   const clientId = "00687daa92064794bc08458536d97d0d";
   const clientSec = "ec8206638bbc49ab8f68bae07ed8eae2"
-  const redirectUri = "http://localhost:3000/";
+  const redirectUri = window.location; //"http://localhost:3000/";
   const scopes = [
     "user-read-currently-playing",
     "user-read-playback-state",
