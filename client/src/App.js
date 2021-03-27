@@ -62,28 +62,31 @@ function App() {
     }
     
     const getBulbs = async () => {
-      var l = await getLights();
-      dispatch(refreshLights(l));
+      
     }
-
+  const conBridge = async () => {
     if("bridge" in hue && "ip" in hue.bridge && "username" in hue.bridge){
-      if(establishConnection(hue)){
-        dispatch(selectBridge(hue))
-        dispatch(toggleBridgeOK(true))
-        getBulbs();
+        if(await establishConnection(hue)){
+          dispatch(selectBridge(hue))
+          dispatch(toggleBridgeOK(true))
+          var l = await getLights();
+          dispatch(refreshLights(l));
+        }
       }
-    }
-    else{
-      if("ip" in bridge && "username" in bridge && "name" in bridge){
-        setHue('bridge', bridge, {path: '/'})
-        dispatch(toggleBridgeOK(true))
-        establishConnection(bridge);
-        getBulbs();
+      else{
+        if("ip" in bridge && "username" in bridge && "name" in bridge){
+          setHue('bridge', bridge, {path: '/'})
+          dispatch(toggleBridgeOK(true))
+          await establishConnection(bridge);
+          var l = await getLights();
+          dispatch(refreshLights(l));
+        }
+        var b = getBridges().then(b => {
+          dispatch(refreshBridges(b))
+        });
       }
-      var b = getBridges().then(b => {
-        dispatch(refreshBridges(b))
-      });
-    }
+    } 
+    conBridge();
   },[bridge]);
 
   return (
@@ -268,7 +271,7 @@ function analysis(state, token, options, lights) {
 const authEndpoint = 'https://accounts.spotify.com/authorize';
   const clientId = "00687daa92064794bc08458536d97d0d";
   const clientSec = "ec8206638bbc49ab8f68bae07ed8eae2"
-  const redirectUri = window.location.origin; //"http://localhost:3000/";
+  const redirectUri = window.location.origin;
   const scopes = [
     "user-read-currently-playing",
     "user-read-playback-state",
@@ -376,6 +379,9 @@ async function getLights(){
   for (var i = 0; i < body.length; i++){
     var b = body[i];
     var bulb = {};
+    if(!("xy" in b.data.state)){
+      continue;
+    }
     bulb['id'] = b.data.id;
     bulb['name'] = b.data.name;
     bulb['color'] = b.data.state.xy;

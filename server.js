@@ -5,6 +5,7 @@ const app = express();
 const v3 = require('node-hue-api').v3;
 const discovery = require('node-hue-api').discovery;
 const thrd = require("threads");
+// const nw = require('nw');
 const port = process.env.PORT || 5000;
 var hueapi = {}
 var segments = undefined;
@@ -134,6 +135,9 @@ async function terminateThreads(){
 }
 
 app.use(express.static('client/build'));
+
+// const startUrl = "http://localhost:5000/" || './client/build/index.html';
+// nw.Window.open(startUrl, {}, function(win) {});
 
   // Express serve up index.html file if it doesn't recognize route
   const path = require('path');

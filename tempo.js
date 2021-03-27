@@ -12,7 +12,7 @@ expose (async function bpm(tempo, lights){
 })
 
 const changeColor = async (id, xy) => {
-    const response = await fetch('http://localhost:3000/api/setLight', {
+    const response = await fetch('http://localhost:5000/api/setLight', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
