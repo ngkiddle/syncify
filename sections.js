@@ -1,7 +1,7 @@
 import { expose } from "threads/worker"
 const thrd = require("threads");
 
-expose(async function sections(sections, progress, trackDur, t, lights){
+expose(async function sections(sections, progress, trackDur, t, lights, threads){
     var d = new Date();
     var latency = d.getTime() - t;
     var compensate = progress + latency;
@@ -11,11 +11,14 @@ expose(async function sections(sections, progress, trackDur, t, lights){
     var ms = compensate;
     var adjust= progress + latency - compensate;
     var lag = true;
+    console.log(threads)
+
+    // console.log("threads.sections !== undefined === " + threads.sections !== undefined)
     while(ms <= trackDur && ms in sections){
       var dur = sections[ms].duration;
       var tempo = sections[ms].tempo;
-      const bpm = await thrd.spawn(new thrd.Worker("./tempo.js"));
-      bpm(tempo, lights);      
+      threads.bpm = await thrd.spawn(new thrd.Worker("./tempo.js"));
+      threads.bpm(tempo, lights, threads);      
       console.log("Sec:   " + ms/1000 + "  \t|   Tempo:   " + tempo)
       if (lag){
         sleep(dur - adjust);
@@ -24,13 +27,13 @@ expose(async function sections(sections, progress, trackDur, t, lights){
       else{
         sleep(dur);
       }
-      if(bpm !== undefined){
-        await thrd.Thread.terminate(bpm);
+      if(threads.bpm !== undefined){
+        await thrd.Thread.terminate(threads.bpm);
       }
       ms += dur;
     }
     console.log("=============== FELL OUT OF SECTIONS LOOP ================")
-    await thrd.Thread.terminate(bpm);
+    thrd.Thread.terminate(threads.bpm);
 
   });
 

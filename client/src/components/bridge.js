@@ -1,6 +1,6 @@
 import React from 'react';
 // this comment tells babel to convert jsx to calls to a function called jsx instead of React.createElement
-/** @jsx jsx */
+/** @jsxImportSource @emotion/react */
 import { css, jsx } from '@emotion/react';
 
 import {useDispatch} from 'react-redux';

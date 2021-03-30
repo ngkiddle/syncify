@@ -1,10 +1,12 @@
 // this comment tells babel to convert jsx to calls to a function called jsx instead of React.createElement
-/** @jsx jsx */
+/** @jsxImportSource @emotion/react */
 import { css, jsx, Global } from '@emotion/react'
 import React, { useState, useEffect } from 'react';
 import * as $ from "jquery";
-import SpotifyPlayer from 'react-spotify-web-playback';
 import { useCookies } from 'react-cookie';
+
+import SpotifyPlayer from 'react-spotify-web-playback';
+import Nouislider from 'react-nouislider';
 
 import {useSelector, useDispatch} from 'react-redux';
 import {refreshBridges, refreshLights, toggleBridgeOK, selectBridge} from './actions';
@@ -13,6 +15,7 @@ import Lightbulb from './components/lightbulbs.js';
 import HueOption from './components/hueOptions.js'
 import Bridge from './components/bridge.js'
 const syncify = require('./images/Syncify.svg');
+
 
 
 function App() {
@@ -148,6 +151,12 @@ function App() {
               tag="Change Bulb Brightness" 
               checked={options.brightnessShift}
             />
+            <Nouislider 
+              range = {{min: -35, max: 0}}
+              start = {[-28, 0]}
+              orientation = "horizontal"
+              connect = {true}
+            />
           </div>
         </div>
       )}
@@ -250,16 +259,13 @@ function analysis(state, token, options, lights) {
       if (state.isPlaying === false){ 
         sendSegments( 
           {0: {duration: 1, loudness: 1}},
-          {0: {duration: 1, tempo: 1}},
           progress, trackDur, t, options, l
         );
       }
       else{
         const segments = createSegmentData(res.segments);
-        const sections = createSectionData(res.sections);
         console.log(segments)
-        console.log(sections)
-        sendSegments(segments, sections, progress, trackDur, t, options, l);
+        sendSegments(segments, progress, trackDur, t, options, l);
       }
     },
     error: (err) => {

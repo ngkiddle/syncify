@@ -9,7 +9,6 @@ const thrd = require("threads");
 const port = process.env.PORT || 5000;
 var hueapi = {}
 var segments = undefined;
-var sections = undefined;
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -88,7 +87,6 @@ app.post('/api/setLight', (req, res) => {
 //recieve spotify analysis data
 app.post('/api/sendAnalysis', (req, res) => {
     const segs = req.body.segments;
-    const sects = req.body.sections;
     const progress = req.body.progress;
     const trackDur = req.body.trackDur;
     const t = req.body.time;
@@ -96,41 +94,21 @@ app.post('/api/sendAnalysis', (req, res) => {
     const lights = req.body.lights;
     console.log(options)
 
-    const syncPls = async (segs, sects, progress, trackDur, t, options, lights) => {
+    const syncPls = async (segs, progress, trackDur, t, options, lights) => {
         await terminateThreads();
-        if(options.colorShift){
-            sections = await thrd.spawn(new thrd.Worker("./sections.js"));
-        }
-        if(options.brightnessShift){
-            segments = await thrd.spawn(new thrd.Worker("./segments.js"));
-        }
-        
-        if(options.colorShift && options.brightnessShift){
-            sections(sects, progress, trackDur, t, lights);
-            await segments(segs, progress, trackDur, t, lights);
-        }
-        else if(options.colorShift && !(options.brightnessShift)){
-            await sections(sects, progress, trackDur, t, lights);
-        }
-        else{
-            await segments(segs, progress, trackDur, t, lights);
-        }
-        terminateThreads();
+        segments = await thrd.spawn(new thrd.Worker("./segments.js"));
+        await segments(segs, progress, trackDur, t, lights, options);
+        await terminateThreads();
     }
-    syncPls(segs, sects, progress, trackDur, t, options, lights);
+    syncPls(segs, progress, trackDur, t, options, lights);
 });
 
 async function terminateThreads(){
-    if (sections !== undefined){
-        thrd.Thread.terminate(sections);
-        sections = undefined;
-        console.log("KILLED SECTIONS")
-    }
+
     if (segments !== undefined){
         thrd.Thread.terminate(segments);
         segments = undefined;
         console.log("KILLED SEGMENTS")
-
     }
 }
 

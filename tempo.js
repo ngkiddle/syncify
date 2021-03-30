@@ -1,7 +1,9 @@
 import { expose } from "threads/worker"
 const fetch = require('node-fetch');
 
-expose (async function bpm(tempo, lights){
+expose (async function bpm(tempo, lights, threads){
+    console.log(threads)
+  // console.log("threads.sections !== undefined && threads.bpm !== undefined === " + threads.sections !== undefined && threads.bpm !== undefined)
     while(true){
         var xy = rgbToXY();
         for (var i = 0; i < lights.length; i++){
