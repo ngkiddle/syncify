@@ -9,6 +9,7 @@
     "@testing-library/jest-dom": "^4.2.4",
     "@testing-library/react": "^9.4.0",
     "@testing-library/user-event": "^7.2.1",
+    "blob-animated": "^1.2.9",
     "jquery": "^3.6.0",
     "node-hue-api": "^5.0.0-beta.2",
     "react": "^16.8.1",

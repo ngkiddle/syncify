@@ -1,7 +1,7 @@
 import React from 'react';
 // this comment tells babel to convert jsx to calls to a function called jsx instead of React.createElement
 /** @jsxImportSource @emotion/react */
-import { css, jsx } from '@emotion/react';
+import {css} from '@emotion/react';
 import Switch from 'react-ios-switch';
 import {useDispatch} from 'react-redux';
 import {toggleLight} from './../actions';

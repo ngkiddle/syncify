@@ -8,9 +8,9 @@ const initState = {
 const optionsReducer = (state = initState, action) => {
     switch(action.type){
         case 'TOGGLE BRIGHTNESS':
-           return {... state, brightnessShift: !(state.brightnessShift)}
+           return {...state, brightnessShift: !(state.brightnessShift)}
         case 'TOGGLE COLOR':
-            return {... state, colorShift: !(state.colorShift)}
+            return {...state, colorShift: !(state.colorShift)}
         default:
             return state;
     }

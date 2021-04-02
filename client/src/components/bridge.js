@@ -1,10 +1,12 @@
 import React from 'react';
 // this comment tells babel to convert jsx to calls to a function called jsx instead of React.createElement
 /** @jsxImportSource @emotion/react */
-import { css, jsx } from '@emotion/react';
+import { css } from '@emotion/react';
+import {getLights} from './../hue.js';
+import global from './../css.js';
 
 import {useDispatch} from 'react-redux';
-import {selectBridge, toggleBridgeOK} from './../actions';
+import {refreshLights, selectBridge, toggleBridgeOK} from './../actions';
 
 function Bridge({ip, name, connected}){
     const dispatch = useDispatch();
@@ -18,30 +20,18 @@ function Bridge({ip, name, connected}){
     display: grid;
     grid-template-columns: 70% 30%;
     padding: 3%;`
-    const button = css`
-    border: 2px solid GhostWhite;
-    border-radius: 5px;
-    color: GhostWhite;
-    text-decoration: none;
-    padding: 5px;
-    background-color: rgba(0,0,0,0);
-    text-align: center;
-    font-size: 12pt;`;
 
-    const b = {
-        ip: ip,
-        name: name,
-        username: false
-    }
     return (
         <div css={grid}>
             <div css={item}>{name} @ {ip}</div>
             <button 
-                css={button} 
+                className="btn" 
                 onClick={async () => {
                     const res = await connectBridge(ip);
+                    console.log(res)
                     dispatch(toggleBridgeOK(true))
                     dispatch(selectBridge(res))
+                    dispatch(refreshLights(getLights));
                 }}
             >Connect</button>
         </div>

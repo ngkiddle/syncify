@@ -39,11 +39,11 @@ app.post('/api/connectBridge', (req, res) => {
         bridge = b;
         console.log("bridge: " + bridge)
         if (bridge){
-            res.send({ connected: true,
-                       bridge: bridge });
             v3.api.createLocal(bridge.ip).connect(bridge.username).then(api =>{
                 hueapi = api;
-            })
+                res.send({ connected: true,
+                    bridge: bridge });
+            })          
         }
         else{
             res.send({ connected: false });
@@ -53,15 +53,17 @@ app.post('/api/connectBridge', (req, res) => {
         console.log(err)
     })
 });
+
 // recieve client cached bridge and connect
 app.post('/api/bridgeAuth', (req, res) => {
     console.log(req.body);
-    res.send(
-        `I received your POST request. This is what you sent me: ${req.body.post}`,
-    );
+
     bridge = req.body.bridge;
     v3.api.createLocal(bridge.ip).connect(bridge.username).then(api =>{
         hueapi = api;
+        res.send(
+            `I received your POST request. This is what you sent me: ${req.body.post}`,
+        );
     })
 });
 
@@ -98,7 +100,7 @@ app.post('/api/sendAnalysis', (req, res) => {
         await terminateThreads();
         segments = await thrd.spawn(new thrd.Worker("./segments.js"));
         await segments(segs, progress, trackDur, t, lights, options);
-        await terminateThreads();
+        terminateThreads();
     }
     syncPls(segs, progress, trackDur, t, options, lights);
 });

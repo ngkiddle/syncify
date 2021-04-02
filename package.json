@@ -9,10 +9,10 @@
     "title": "Syncify",
     "toolbar": true
   },  "scripts": {
-    "dev": "npm run client",
-    "client": "cd client && npm run build && cd .. && npm run server",
+    "dev": "concurrently \"npm run server\" \"cd client && npm run start\"",
+    "start": "cd client && npm run build && cd .. && npm run server",
     "server": "nodemon server.js",
-    "start": "concurrently \"npm run client\" \"wait-on http://localhost:5000 && nw .\""
+    "nw": "concurrently \"npm run start\" \"wait-on http://localhost:5000 && nw .\""
   },
   "dependencies": {
     "body-parser": "^1.18.3",

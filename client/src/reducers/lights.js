@@ -3,7 +3,7 @@ const lightsReducer = (state = [], action) => {
         case 'TOGGLE SYNC':
            return state.map(l => {
                 if (l.id === action.payload){
-                    return {... l, sync: !l.sync}
+                    return {...l, sync: !l.sync}
                 }
                 console.log(l)
                 return l;

@@ -10,12 +10,17 @@ expose (async function segments(segments, progress, trackDur, t, lights, options
     compensate++;
   }
   var ms = compensate;
+  var xy = rgbToXY();
+  var prevBri = 0;
   while(ms <= trackDur && ms in segments){
     var startDate = new Date();
     var startT = startDate.getTime();
-    var xy = rgbToXY();
     var dur = segments[ms].duration;
     var bri = segments[ms].loudness;
+    var briDif = prevBri - bri;
+    if(bri > 115 || briDif < -15 || briDif > 15){
+      xy = rgbToXY();
+    }
     for (var i = 0; i < lights.length; i++){
       if(options.brightnessShift && !(options.colorShift)){
         await changeBri(lights[i], bri);
@@ -34,7 +39,6 @@ expose (async function segments(segments, progress, trackDur, t, lights, options
     var endDate = new Date();
     var endT = endDate.getTime();
     var lag = endT - startT;
-    console.log(dur-lag)
     sleep(dur - lag);
     ms += dur;
   }
