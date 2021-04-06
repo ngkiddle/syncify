@@ -44,3 +44,10 @@ export const toggleBridgeOK = (ok) => {
         payload: ok
     }
 }
+
+export const refreshDb = (db) => {
+    return {
+        type: 'REFRESH DB',
+        payload: db
+    }
+}

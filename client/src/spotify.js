@@ -1,36 +1,56 @@
 import * as $ from "jquery";
 import {sendSegments} from "./hue.js";
 
-function analysis(state, token, options, lights) {
+var segmentsCur = {};
+
+async function analysis(state, token, options, lights) {
     var d = new Date();
     var t = d.getTime();
     var progress = state.progressMs;
     var trackDur = state.track.durationMs;
     console.log(state)
-    $.ajax({
-        url: "https://api.spotify.com/v1/audio-analysis/" + state.track.id,
-        type: "GET",
-        beforeSend: (xhr) => {
-        xhr.setRequestHeader("Authorization", "Bearer " + token);
-        },
-        success: (res) => {
+    if(!(state.track.id in segmentsCur)){
+        $.ajax({
+            url: "https://api.spotify.com/v1/audio-analysis/" + state.track.id,
+            type: "GET",
+            beforeSend: (xhr) => {
+            xhr.setRequestHeader("Authorization", "Bearer " + token);
+            },
+            success: async (res) => {
+            segmentsCur[state.track.id] = res.segments;
+            const l = extractLightId(lights)
+            if (state.isPlaying === false){ 
+                sendSegments( 
+                {0: false},
+                progress, trackDur, t, options, l
+                );
+            }
+            else{
+                const segments = createSegmentData(res.segments, options.dbHigh, options.dbLow);
+                console.log(segments)
+                return (await sendSegments(segments, progress, trackDur, t, options, l));
+            }
+            },
+            error: (err) => {
+                console.log(err);
+                return (false);
+            }
+        });
+    }
+    else{
         const l = extractLightId(lights)
-        if (state.isPlaying === false){ 
-            sendSegments( 
-            {0: {duration: 1, loudness: 1}},
-            progress, trackDur, t, options, l
-            );
-        }
-        else{
-            const segments = createSegmentData(res.segments);
-            console.log(segments)
-            sendSegments(segments, progress, trackDur, t, options, l);
-        }
-        },
-        error: (err) => {
-        console.log(err);
-        }
-    });  
+            if (state.isPlaying === false){ 
+                sendSegments( 
+                {0: false},
+                progress, trackDur, t, options, l
+                );
+            }
+            else{
+                const segments = createSegmentData(segmentsCur[state.track.id], options.dbHigh, options.dbLow);
+                console.log(segments)
+                return (await sendSegments(segments, progress, trackDur, t, options, l));
+            }
+    }
 }
 
 const authEndpoint = 'https://accounts.spotify.com/authorize';
@@ -108,7 +128,7 @@ console.log(result);
 return result;
 }
 
-function createSegmentData(segs){
+function createSegmentData(segs, dbHigh, dbLow){
     var segments = {};
     var prevDur = 0;
     var prevStart = 0;
@@ -116,7 +136,7 @@ function createSegmentData(segs){
         var seg = segs[i];
         var dur = Math.round(seg.duration*1000);
         var start = prevStart + prevDur;
-        var db = Math.round(((1 - (Math.min(Math.max(seg.loudness_max, -28), 0) / -28)) * 253) +1)
+        var db = Math.round(((1 - (Math.min(Math.max(seg.loudness_max, dbLow), dbHigh) / dbLow)) * 253) +1)
         segments[start] = {duration: dur, loudness: db};
         prevDur = dur;
         prevStart = start;

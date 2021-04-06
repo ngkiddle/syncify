@@ -5,22 +5,24 @@ const app = express();
 const v3 = require('node-hue-api').v3;
 const discovery = require('node-hue-api').discovery;
 const thrd = require("threads");
-// const nw = require('nw');
 const port = process.env.PORT || 5000;
-var hueapi = {}
+
+var hueapi = undefined;
+var bridge = undefined;
 var segments = undefined;
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-var bridge = undefined;
-
 // Get a bridge and create a user
 app.get('/api/discAllBridges', (req, res) => {
     disc.discoverBridge().then(b => {
         bridges = b;
-        console.log("bridges: " + bridges)
+        console.log(bridges)
         if (bridges){
+            for(var i = 0; i < bridges.length; i++){
+                bridges[i]['index'] = i;
+            }
             res.send({ bridges: bridges });
         }
         else{
@@ -69,6 +71,12 @@ app.post('/api/bridgeAuth', (req, res) => {
 
 // get lights on a bridge
 app.get('/api/allLights', (req, res) => {
+    console.log(hueapi)
+    console.log(bridge)
+    if(bridge === undefined || hueapi === undefined){
+        res.send({connected: false})
+        return
+    }
     hueapi.lights.getAll().then( lights => {
         // Iterate over the light objects showing details
         lights.forEach(light => {
@@ -88,6 +96,9 @@ app.post('/api/setLight', (req, res) => {
 
 //recieve spotify analysis data
 app.post('/api/sendAnalysis', (req, res) => {
+    if(bridge === undefined || hueapi === undefined){
+        res.send({connected: false})
+    }
     const segs = req.body.segments;
     const progress = req.body.progress;
     const trackDur = req.body.trackDur;
@@ -95,10 +106,14 @@ app.post('/api/sendAnalysis', (req, res) => {
     const options = req.body.options;
     const lights = req.body.lights;
     console.log(options)
+    if(segs['0'] === false){
+        terminateThreads()
+    }
 
     const syncPls = async (segs, progress, trackDur, t, options, lights) => {
-        await terminateThreads();
+        terminateThreads();
         segments = await thrd.spawn(new thrd.Worker("./segments.js"));
+        thrd.Thread.events(segments).subscribe(event => console.log("Thread event:", event))
         await segments(segs, progress, trackDur, t, lights, options);
         terminateThreads();
     }
@@ -106,7 +121,6 @@ app.post('/api/sendAnalysis', (req, res) => {
 });
 
 async function terminateThreads(){
-
     if (segments !== undefined){
         thrd.Thread.terminate(segments);
         segments = undefined;

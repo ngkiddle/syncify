@@ -12,6 +12,7 @@ expose (async function segments(segments, progress, trackDur, t, lights, options
   var ms = compensate;
   var xy = rgbToXY();
   var prevBri = 0;
+  var lastLag = 0;
   while(ms <= trackDur && ms in segments){
     var startDate = new Date();
     var startT = startDate.getTime();
@@ -39,7 +40,8 @@ expose (async function segments(segments, progress, trackDur, t, lights, options
     var endDate = new Date();
     var endT = endDate.getTime();
     var lag = endT - startT;
-    sleep(dur - lag);
+    sleep(dur - lastLag);
+    lastLag = lag;
     ms += dur;
   }
   console.log("=============== FELL OUT OF SEGMENT LOOP ================")
@@ -116,5 +118,3 @@ function sleep(milliseconds) {
     currentDate = Date.now();
   } while (currentDate - date < milliseconds);
 }
-
-export default sync

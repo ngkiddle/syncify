@@ -2,7 +2,8 @@ const initState = {
     colorShift: true,
     colorScheme: 0,
     brightnessShift: true,
-    brightnessThreshold: -28
+    dbHigh: 0,
+    dbLow: -28
     };
 
 const optionsReducer = (state = initState, action) => {
@@ -11,6 +12,8 @@ const optionsReducer = (state = initState, action) => {
            return {...state, brightnessShift: !(state.brightnessShift)}
         case 'TOGGLE COLOR':
             return {...state, colorShift: !(state.colorShift)}
+        case 'REFRESH DB':
+           return {...state, dbHigh: action.payload[1], dbLow: action.payload[0]}
         default:
             return state;
     }

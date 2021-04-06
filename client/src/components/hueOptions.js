@@ -6,22 +6,31 @@ import Switch from 'react-ios-switch';
 import {useDispatch} from 'react-redux';
 import {toggleBrightness, toggleColor} from './../actions';
 
-function HueOption({tag, checked}){
+function HueOption({tag, checked, last}){
     const dispatch = useDispatch();
-    const grid =  css`
-        display: grid;
-        grid-template-columns: 90% 10%;
-        padding: 3%;`;
-    const item = css`
-        line-height: 2;
-        font-size: 14pt;`;
+    var grid = undefined
+    if(last){
+        grid =  css`
+            display: grid;
+            grid-template-columns: 90% 10%;
+            padding: 2%;`;
+    }
+    else{
+        grid =  css`
+            display: grid;
+            grid-template-columns: 90% 10%;
+            padding: 2%;
+            border-bottom: 1px solid rgb(33,33,33);`;
+    }
 
+    const item = css`line-height: 1.8; font-size: 14pt;`;
+    
     return (
         <div css={grid}>
             <div css={item}>{tag}</div>
             <Switch
                 checked={checked}
-                onColor={"rgb(139, 0, 139)"}
+                onColor={"rgb(33, 33, 33)"}
                 onChange={() => {
                     tag === "Change Bulb Colors" ? 
                     dispatch(toggleColor()) : dispatch(toggleBrightness())

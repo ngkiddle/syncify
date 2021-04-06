@@ -30,7 +30,11 @@ async function establishConnection(hue){
 async function getLights(){
     const response = await fetch('/api/allLights');
     const body = await response.json();
+    if(body.connected === false){
+        return false;
+    }
     if (response.status !== 200) throw Error(body.message);
+
     var l = [];
     for (var i = 0; i < body.length; i++){
         var b = body[i];
@@ -54,7 +58,7 @@ async function getLights(){
     return l;
 };
   
-const sendSegments = async (segments, progress, trackDur, t, options, lights) => {
+async function sendSegments (segments, progress, trackDur, t, options, lights){
     const response = await fetch('/api/sendAnalysis', 
     {
         method: 'POST',
@@ -70,7 +74,12 @@ const sendSegments = async (segments, progress, trackDur, t, options, lights) =>
             lights: lights}),
     });
     const body = await response.text();
-    console.log(body)
+    if(body.connected === false){
+        return false;
+    }
+    else{
+        return true;
+    }
     //post the data to server
   }
   

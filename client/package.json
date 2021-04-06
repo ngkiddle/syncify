@@ -12,6 +12,7 @@
     "blob-animated": "^1.2.9",
     "jquery": "^3.6.0",
     "node-hue-api": "^5.0.0-beta.2",
+    "nouislider-react": "^3.4.0",
     "react": "^16.8.1",
     "react-cookie": "^4.0.3",
     "react-dom": "^16.8.1",
