@@ -5,6 +5,7 @@ import {css} from '@emotion/react';
 import Switch from 'react-ios-switch';
 import {useSelector, useDispatch} from 'react-redux';
 import {toggleLight} from './../actions';
+import { pause } from '../spotify';
 
 function Lightbulb({id, name, bri, color, sync, toggle, index}){
     const lights = useSelector(state => state.lights);
@@ -35,7 +36,10 @@ function Lightbulb({id, name, bri, color, sync, toggle, index}){
             <Switch
                 checked={sync}
                 onColor={rgbString}
-                onChange={() => {dispatch(toggleLight(id))}}
+                onChange={() => {
+                    pause()
+                    dispatch(toggleLight(id))
+                }}
             />
         </div>
     );

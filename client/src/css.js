@@ -34,12 +34,12 @@ const global = css`
   }
   .player{
     border: 1px solid white;
-    box-shadow: 5px 5px;
     padding: 2%;
     border-radius: 15px;
     background-color: rgba(255,255,255,.5);
     box-shadow: 5px 5px 20px rgb(255,255,255) inset;
     backdrop-filter: blur(10px); 
+    z-index: 100;
   }
   .btn{
     border: 1px solid white;
@@ -72,6 +72,8 @@ const global = css`
     filter: invert(1);
   }
   .option-menu{
+    position: relative;
+    z-index: 1;
     margin: auto;
     color: rgb(33,33,33);
     width: 500px;
@@ -91,7 +93,17 @@ const global = css`
     padding-bottom: 0%;
     font-size: 14pt;
     font-weight: bold;
-
+  }
+  .titlebar-lights{
+    display: grid;
+    gap: 2px;
+    grid-template-columns: 83% 7.5% 1px 7.5%;
+    border-bottom: 2px solid rgb(33,33,33);
+    padding-left: 3%;
+    padding-top: 2%;
+    padding-bottom: 2%;
+    font-size: 14pt;
+    font-weight: bold;
   }
   .infobar{
     display: grid;
@@ -112,15 +124,25 @@ const global = css`
   .icon{
     margin-bottom: 8px;
   }
+  .hub{
+    position: absolute;
+    padding: 5px;
+    top: 2px;
+  }
+  .hub:hover{
+    background-fill: white;
+    background-color: white;
+    border-radius: 24px;
+    filter: invert(1);
+    cursor: pointer;
+  }
   .refresh-icon{
-    margin-bottom: 3px;
+    position: absolute;
+    padding: 5px;
+    top: 2px;
   }
   .refresh-icon:hover{
-    font-weight: bold;
-    margin-bottom: 3px;
     background: white;
-    padding: 3px;
-    padding-left: 2px;
     border-radius: 24px;
     filter: invert(1);
     cursor: pointer;
@@ -133,8 +155,11 @@ const global = css`
     height: 40px;
   }
   .db-info{
+    div{
+      margin-top: 3px;
+    }
     display: grid;
-    grid-template-columns: 10% 90%;
+    grid-template-columns: 5% 95%;
     padding-bottom: 0%;
     font-size: 12pt;
     text-align: center;
@@ -155,6 +180,24 @@ const global = css`
     box-shadow: 5px 5px 20px rgb(255,255,255) inset;
     border-radius: 24px;
     color: rgb(33,33,33);
+  }
+  .__1hv1669 > div{
+    z-index: 100;
+    border: 1px solid white;
+    border-radius: 15px;
+    background-color: rgba(255,255,255,.5);
+    box-shadow: 5px 5px 20px rgb(255,255,255) inset;
+    backdrop-filter: blur(10px); 
+  }
+  .PlayerRSWP{
+    position: relative;
+    z-index: 99;
+  }
+  ._DevicesRSWP > div{
+    position: absolute;
+    z-index: 100;
+    right: -1010%;
+    top: 75%;
   }
 `;
 

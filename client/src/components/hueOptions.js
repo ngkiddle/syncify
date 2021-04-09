@@ -5,6 +5,7 @@ import {css} from '@emotion/react'
 import Switch from 'react-ios-switch';
 import {useDispatch} from 'react-redux';
 import {toggleBrightness, toggleColor} from './../actions';
+import { pause } from '../spotify';
 
 function HueOption({tag, checked, last}){
     const dispatch = useDispatch();
@@ -32,6 +33,7 @@ function HueOption({tag, checked, last}){
                 checked={checked}
                 onColor={"rgb(33, 33, 33)"}
                 onChange={() => {
+                    pause();
                     tag === "Change Bulb Colors" ? 
                     dispatch(toggleColor()) : dispatch(toggleBrightness())
                 }}

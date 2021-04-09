@@ -15,7 +15,7 @@ async function establishConnection(hue){
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ bridge: hue.bridge }),
+        body: JSON.stringify({ bridge: hue }),
     });
     const body = await response;
     if (body.status === 200){

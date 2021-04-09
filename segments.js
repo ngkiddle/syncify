@@ -37,11 +37,17 @@ expose (async function segments(segments, progress, trackDur, t, lights, options
       }
     }
     console.log("Sec:   " + ms/1000 + "    \t|   Brightness:   " + (bri));
-    var endDate = new Date();
-    var endT = endDate.getTime();
-    var lag = endT - startT;
-    sleep(dur - lastLag);
-    lastLag = lag;
+
+    if(lights.length > 4){
+      var endDate = new Date();
+      var endT = endDate.getTime();
+      var lag = endT - startT;
+      sleep(dur - lastLag);
+      lastLag = lag;
+    }
+    else{
+      sleep(dur);
+    }
     ms += dur;
   }
   console.log("=============== FELL OUT OF SEGMENT LOOP ================")
@@ -57,7 +63,7 @@ const changeBri = async (id, bri) => {
     },
     body: JSON.stringify({
       id: id,
-      state: {bri: bri} 
+      state: {bri: bri, on: true} 
     })
   });
 }
@@ -69,7 +75,7 @@ const changeColor = async (id, xy) => {
     },
     body: JSON.stringify({
       id: id,
-      state: {xy: xy} 
+      state: {xy: xy, on: true} 
     })
   });
 }
@@ -81,7 +87,7 @@ const changeColorAndBrightness = async (id, bri, xy) => {
     },
     body: JSON.stringify({
       id: id,
-      state: {bri: bri, xy: xy} 
+      state: {bri: bri, xy: xy, on: true} 
     })
   });
 }

@@ -53,7 +53,9 @@ function Bridge({ip, name, connected, index}){
                     dispatch(selectBridge(res))
                     dispatch(refreshLights(getLights));
                   }
-                  alert("Error: please press button on Hue Hub first.")
+                  else{
+                    alert("Error: please press button on Hue Hub first.")
+                  }
               }}
           >{connect}</div>
       </div>

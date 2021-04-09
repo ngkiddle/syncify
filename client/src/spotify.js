@@ -170,6 +170,14 @@ function createSectionData(sects){
     return sections;
 }
 
+function pause(){
+    var element = document.querySelector('[aria-label="Pause"]');
+    if(element !== null){
+      element.click();
+    }
+    return;
+  }
+
 export {
     analysis,
     connectSpotify,
@@ -178,5 +186,6 @@ export {
     refreshSpotifyTokens, 
     createSegmentData,
     extractLightId,
-    createSectionData
+    createSectionData,
+    pause
 }
