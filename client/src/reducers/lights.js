@@ -8,6 +8,8 @@ const lightsReducer = (state = [], action) => {
                 console.log(l)
                 return l;
             })
+        case 'TOGGLE ROOM SYNC':
+            return state.map(l => l.room.id === action.payload.roomId ? {...l, sync: action.payload.sync} : l)
         case 'REFRESH LIGHTS':
             return action.payload
         default:

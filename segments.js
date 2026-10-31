@@ -1,5 +1,4 @@
-import { expose } from "threads/worker"
-const thrd = require("threads");
+const { expose } = require("threads/worker");
 const fetch = require('node-fetch');
 
 expose (async function segments(segments, progress, trackDur, t, lights, options) {

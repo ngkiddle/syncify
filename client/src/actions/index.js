@@ -5,6 +5,13 @@ export const toggleLight = (id) => {
     }
 }
 
+export const toggleRoom = (roomId, sync) => {
+    return {
+        type: 'TOGGLE ROOM SYNC',
+        payload: {roomId: roomId, sync: sync}
+    }
+}
+
 export const refreshLights = (lights) => {
     return {
         type: 'REFRESH LIGHTS',

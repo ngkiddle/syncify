@@ -2,10 +2,8 @@
 async function getBridges(){
     const response = await fetch('/api/discAllBridges');
     const body = await response.json();
-    if(body.bridges){
-      return body.bridges;
-    }
-    if (response.status !== 200) throw Error(body.message);
+    if (body.error) console.log("Bridge discovery: " + body.error);
+    return body.bridges || [];
   };
   
 async function establishConnection(hue){
@@ -17,14 +15,7 @@ async function establishConnection(hue){
         },
         body: JSON.stringify({ bridge: hue }),
     });
-    const body = await response;
-    if (body.status === 200){
-        return true
-    }
-    else{
-        return false;
-    }
-    //post the data to server
+    return response.status === 200;
   }
   
 async function getLights(){
@@ -38,21 +29,19 @@ async function getLights(){
     var l = [];
     for (var i = 0; i < body.length; i++){
         var b = body[i];
-        var bulb = {};
-        if(!("xy" in b.data.state)){
+        // only color-capable lights can be synced
+        if(!b.xy){
             continue;
         }
-        bulb['id'] = b.data.id;
-        bulb['name'] = b.data.name;
-        bulb['color'] = b.data.state.xy;
-        bulb['bri'] = b.data.state.bri;
+        var bulb = {};
+        bulb['id'] = b.id;
+        bulb['name'] = b.name;
+        bulb['room'] = b.room;
+        bulb['color'] = b.xy;
+        bulb['bri'] = b.bri;
         bulb['sync'] = true;
-        bulb['index'] = i;
-        var on = "off";
-        if (b.data.state.on){
-            on = "on";
-        }
-        bulb['state'] = on;
+        bulb['index'] = l.length;
+        bulb['state'] = b.on ? "on" : "off";
         l.push(bulb);
     }
     return l;
@@ -73,7 +62,7 @@ async function sendSegments (segments, progress, trackDur, t, options, lights){
             options: options,
             lights: lights}),
     });
-    const body = await response.text();
+    const body = await response.json();
     if(body.connected === false){
         return false;
     }

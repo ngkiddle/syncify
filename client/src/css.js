@@ -8,6 +8,7 @@ const global = css`
       margin:0px;
       padding: 0px;
       background-image: linear-gradient(45deg, DarkMagenta, Coral);
+      background-attachment: fixed;
       width: 100%;
       height: 100%;
       color: GhostWhite;
@@ -104,6 +105,24 @@ const global = css`
     padding-bottom: 2%;
     font-size: 14pt;
     font-weight: bold;
+  }
+  .room-list{
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 20px;
+    width: 90%;
+    margin: 20px auto 60px;
+  }
+  .room-list .option-menu{
+    width: 300px;
+    margin: 0;
+  }
+  .room-list .titlebar{
+    grid-template-columns: 1fr auto;
+    padding-right: 3%;
+    padding-bottom: 2%;
   }
   .infobar{
     display: grid;

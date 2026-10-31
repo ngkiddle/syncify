@@ -3,27 +3,25 @@ import React from 'react';
 /** @jsxImportSource @emotion/react */
 import {css} from '@emotion/react';
 import Switch from 'react-ios-switch';
-import {useSelector, useDispatch} from 'react-redux';
+import {useDispatch} from 'react-redux';
 import {toggleLight} from './../actions';
-import { pause } from '../spotify';
 
-function Lightbulb({id, name, bri, color, sync, toggle, index}){
-    const lights = useSelector(state => state.lights);
+function Lightbulb({id, name, bri, color, sync, toggle, last}){
     const rgb = xyBriToRgb(color[0], color[1], bri)
     const rgbString = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`
     const dispatch = useDispatch();
     
     var grid = undefined
-    if(index === lights.length-1){
+    if(last){
         grid =  css`
             display: grid;
-            grid-template-columns: 90% 10%;
+            grid-template-columns: 1fr auto;
             padding: 2%;`;
     }
     else{
         grid =  css`
             display: grid;
-            grid-template-columns: 90% 10%;
+            grid-template-columns: 1fr auto;
             padding: 2%;
             border-bottom: 1px solid rgb(33,33,33);`;
     }
@@ -37,7 +35,6 @@ function Lightbulb({id, name, bri, color, sync, toggle, index}){
                 checked={sync}
                 onColor={rgbString}
                 onChange={() => {
-                    pause()
                     dispatch(toggleLight(id))
                 }}
             />

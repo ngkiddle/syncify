@@ -2,10 +2,8 @@ import React from 'react';
 // this comment tells babel to convert jsx to calls to a function called jsx instead of React.createElement
 /** @jsxImportSource @emotion/react */
 import { css } from '@emotion/react';
-import {getBridges, getLights} from './../hue.js';
-
 import {useSelector, useDispatch} from 'react-redux';
-import {refreshLights, selectBridge, toggleBridgeOK} from './../actions';
+import {selectBridge, toggleBridgeOK} from './../actions';
 
 function Bridge({ip, name, connected, index}){
   const bridges = useSelector(state => state.bridges);
@@ -51,7 +49,6 @@ function Bridge({ip, name, connected, index}){
                   if(res){
                     dispatch(toggleBridgeOK(true))
                     dispatch(selectBridge(res))
-                    dispatch(refreshLights(getLights));
                   }
                   else{
                     alert("Error: please press button on Hue Hub first.")

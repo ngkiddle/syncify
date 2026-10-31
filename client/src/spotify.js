@@ -1,5 +1,6 @@
 import * as $ from "jquery";
 import {sendSegments} from "./hue.js";
+import {logToServer} from "./remoteLog.js";
 
 var segmentsCur = {};
 
@@ -9,6 +10,11 @@ async function analysis(state, token, options, lights) {
     var progress = state.progressMs;
     var trackDur = state.track.durationMs;
     console.log(state)
+    logToServer(`player ${state.type}: "${state.track.name}" playing=${state.isPlaying} progress=${progress}ms, ` +
+        `synced lights=${extractLightId(lights).length}, color=${options.colorShift} bri=${options.brightnessShift}`);
+    if(!state.track.id){
+        return;
+    }
     if(!(state.track.id in segmentsCur)){
         $.ajax({
             url: "https://api.spotify.com/v1/audio-analysis/" + state.track.id,
@@ -17,10 +23,11 @@ async function analysis(state, token, options, lights) {
             xhr.setRequestHeader("Authorization", "Bearer " + token);
             },
             success: async (res) => {
+            logToServer(`audio-analysis OK: ${res.segments.length} segments`);
             segmentsCur[state.track.id] = res.segments;
             const l = extractLightId(lights)
-            if (state.isPlaying === false){ 
-                sendSegments( 
+            if (state.isPlaying === false){
+                sendSegments(
                 {0: false},
                 progress, trackDur, t, options, l
                 );
@@ -32,15 +39,15 @@ async function analysis(state, token, options, lights) {
             }
             },
             error: (err) => {
-                console.log(err);
+                logToServer(`audio-analysis FAILED for track ${state.track.id}: HTTP ${err.status} ${err.responseText}`, 'error');
                 return (false);
             }
         });
     }
     else{
         const l = extractLightId(lights)
-            if (state.isPlaying === false){ 
-                sendSegments( 
+            if (state.isPlaying === false){
+                sendSegments(
                 {0: false},
                 progress, trackDur, t, options, l
                 );
@@ -56,7 +63,9 @@ async function analysis(state, token, options, lights) {
 const authEndpoint = 'https://accounts.spotify.com/authorize';
 const clientId = "00687daa92064794bc08458536d97d0d";
 const clientSec = "ec8206638bbc49ab8f68bae07ed8eae2"
-const redirectUri = window.location.origin;
+// Check if we're on localhost - Spotify requires exact match for redirect URI
+const redirectUri = 'https://127.0.0.1:3000';
+
 const scopes = [
     "user-read-currently-playing",
     "user-read-playback-state",
@@ -68,7 +77,7 @@ const scopes = [
 ];
 
 async function connectSpotify(){
-window.location = `${authEndpoint}?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&scope=${scopes.join("%20")}&state=34fFs29kd09`
+window.location = `${authEndpoint}?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes.join("%20")}&state=34fFs29kd09`
 }
 
 const hash = async() => {
@@ -84,7 +93,7 @@ const code = window.location.search
     return initial;
 }, {});
 return code.code;
-}  
+}
 
 async function getSpotifyTokens(code){
 const res = $.ajax(
@@ -183,7 +192,7 @@ export {
     connectSpotify,
     hash,
     getSpotifyTokens,
-    refreshSpotifyTokens, 
+    refreshSpotifyTokens,
     createSegmentData,
     extractLightId,
     createSectionData,
