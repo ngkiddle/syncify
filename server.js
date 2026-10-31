@@ -1,6 +1,7 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const logStream = require('./logStream');
+const remote = require('./remote');
 const hue = require('./hueClient');
 const liveSync = require('./liveSync');
 const app = express();
@@ -11,13 +12,56 @@ var hueapi = undefined;
 var bridge = undefined;
 var segments = undefined;
 
+// Remember the paired bridge on disk so a server restart reconnects without a page reload
+const fs = require('fs');
+const bridgeFile = __dirname + '/.hue-bridge.json';
+
+function saveBridge(b) {
+    fs.writeFile(bridgeFile, JSON.stringify(b), err => {
+        if (err) console.log('could not save bridge: ' + err.message);
+    });
+}
+
+try {
+    const saved = JSON.parse(fs.readFileSync(bridgeFile, 'utf8'));
+    bridge = saved;
+    hueapi = hue.connect(saved.ip, saved.username, saved.clientkey);
+    console.log(`restored bridge "${saved.name}" at ${saved.ip}`);
+} catch (err) {
+    // not paired yet
+}
+
 app.use(bodyParser.json({ limit: '5mb' }));
 app.use(bodyParser.urlencoded({ extended: true }));
+// Shut both servers down once every Syncify page has been closed for a while
+// (AUTO_SHUTDOWN_MINUTES, default 15; 0 keeps them running).
+const idleMinutes = process.env.AUTO_SHUTDOWN_MINUTES === undefined ? 15 : Number(process.env.AUTO_SHUTDOWN_MINUTES);
+function shutdown() {
+    // release the entertainment area cleanly, then stop the dev server (port 3000) and exit
+    liveSync.stop();
+    setTimeout(() => {
+        try {
+            const netstat = require('child_process').execSync('netstat -ano -p tcp', {encoding: 'utf8', windowsHide: true});
+            const pids = new Set(netstat.split('\n')
+                .filter(line => /:3000\s+\S+\s+LISTENING/.test(line))
+                .map(line => Number(line.trim().split(/\s+/).pop())));
+            pids.forEach(pid => {
+                try { process.kill(pid); } catch (err) { /* already gone */ }
+            });
+        } catch (err) {
+            console.log('could not stop the dev server: ' + err.message);
+        }
+        process.exit(0);
+    }, 1000);
+}
+
+// remote first: its PIN check guards every /api route registered after it
+remote.attach(app, {idleMinutes: idleMinutes, onIdle: shutdown});
 logStream.attach(app);
 
 // Log every API call except the per-segment light commands and the log stream itself
 app.use('/api', (req, res, next) => {
-    if (!['/setLight', '/logs', '/clientLog', '/liveFrame'].includes(req.path)) {
+    if (!['/setLight', '/logs', '/clientLog', '/liveFrame', '/events', '/status', '/settings'].includes(req.path)) {
         console.log(`${req.method} /api${req.path}`);
     }
     next();
@@ -41,11 +85,12 @@ app.post('/api/connectBridge', async (req, res) => {
     const ip = req.body.ip;
     console.log("press link button on device with ip: " + ip);
     try {
-        const { appKey } = await hue.createAppKey(ip);
+        const { appKey, clientKey } = await hue.createAppKey(ip);
         const config = await hue.getBridgeConfig(ip);
-        hueapi = hue.connect(ip, appKey);
+        hueapi = hue.connect(ip, appKey, clientKey);
         // `username` holds the v2 application key so the client's cookie format is unchanged
-        bridge = { ip: ip, name: config.name, model: config.modelid, username: appKey };
+        bridge = { ip: ip, name: config.name, model: config.modelid, username: appKey, clientkey: clientKey };
+        saveBridge(bridge);
         res.send({ connected: true, bridge: bridge });
     } catch (err) {
         if (err.type === 101) {
@@ -81,12 +126,13 @@ app.post('/api/connectHue', async (req, res) => {
 // Reconnect with a bridge + application key cached by the client
 app.post('/api/bridgeAuth', async (req, res) => {
     const cached = req.body.bridge;
-    const api = hue.connect(cached.ip, cached.username);
+    const api = hue.connect(cached.ip, cached.username, cached.clientkey);
     try {
         // Cheap authenticated call to prove the key is still valid on this bridge
         await api.getLights();
         hueapi = api;
         bridge = cached;
+        saveBridge(cached);
         res.send({ connected: true });
     } catch (err) {
         console.log('Cached bridge rejected:', err.message);
@@ -136,14 +182,47 @@ app.post('/api/setLight', (req, res) => {
     res.send({ok: true})
 });
 
+// entertainment areas (set up in the Hue app) available for streaming
+app.get('/api/entertainmentAreas', async (req, res) => {
+    if(hueapi === undefined){
+        res.send({connected: false})
+        return
+    }
+    try {
+        const configs = await hueapi.getEntertainmentConfigs();
+        res.send({
+            // streaming needs the client key, which only exists if we paired after this change
+            streaming: Boolean(hueapi.clientKey),
+            areas: configs.map(c => ({
+                id: c.id,
+                name: c.metadata.name,
+                channels: c.channels.length,
+                status: c.status,
+            })),
+        });
+    } catch (err) {
+        console.log(err.message);
+        res.send({streaming: false, areas: [], error: err.message});
+    }
+});
+
 // live audio sync: one loudness frame from the browser's audio analysis
 app.post('/api/liveFrame', (req, res) => {
     if(hueapi === undefined){
         res.send({connected: false})
         return
     }
-    liveSync.frame(hueapi, req.body.lights, req.body.bri, req.body.options);
-    res.send({connected: true})
+    const colors = liveSync.frame(hueapi, req.body.lights, req.body.bri, req.body.options, req.body.palette);
+    res.send({connected: true, colors: colors})
+});
+
+// static palette colors (color sync off): returns {lightId: [x, y]} for the switch tints
+app.post('/api/staticColors', (req, res) => {
+    if(hueapi === undefined){
+        res.send({connected: false})
+        return
+    }
+    res.send({connected: true, colors: liveSync.applyStatic(hueapi, req.body.lights, req.body.palette)})
 });
 
 app.post('/api/liveStop', (req, res) => {
@@ -206,4 +285,5 @@ app.use(express.static('client/build'));
     res.sendFile(path.resolve(__dirname, 'client', 'build', 'index.html'));
   });
 
-app.listen(port, () => console.log(`Listening on port ${port}`));
+// localhost only: other devices reach the API through the dev server's proxy, which the PIN check sees
+app.listen(port, '127.0.0.1', () => console.log(`Listening on 127.0.0.1:${port}`));

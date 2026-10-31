@@ -5,21 +5,20 @@ import { useState, useEffect, useRef } from 'react';
 import { useCookies } from 'react-cookie';
 
 import {global} from './css.js';
-import { getBridges, establishConnection, getLights} from "./hue.js";
-import {connectSpotify, hash, getSpotifyTokens, refreshSpotifyTokens, extractLightId, pause} from './spotify.js';
+import { getBridges, establishConnection, getLights, getEntertainmentAreas} from "./hue.js";
+import {connectSpotify, hash, getSpotifyTokens, refreshSpotifyTokens, extractLightId, takeOverPlayback, pause} from './spotify.js';
 import * as audioSync from './audioSync.js';
 import {logToServer} from './remoteLog.js';
 
 import SpotifyPlayer from 'react-spotify-web-playback';
-import Nouislider from "nouislider-react";
-import "nouislider/distribute/nouislider.css";
-import DrawBlob, {generatePoints} from 'blob-animated';
+import drawBlob from './blob.js';
 
-import {useSelector, useDispatch} from 'react-redux';
-import {refreshBridges, refreshLights, toggleBridgeOK, selectBridge, refreshDb} from './actions';
+import {useSelector, useDispatch, useStore} from 'react-redux';
+import {connect, sendStatus} from './remoteSync.js';
+import {refreshBridges, refreshLights, toggleBridgeOK, selectBridge, setSyncedColor} from './actions';
 
-import Room from './components/room.js';
-import HueOption from './components/hueOptions.js'
+import Room, {groupByRoom} from './components/room.js';
+import SyncOptions, {row, hubinfo} from './components/syncOptions.js';
 import Bridge from './components/bridge.js'
 const syncify = require('./images/Syncify.svg').default;
 
@@ -38,10 +37,42 @@ function App() {
   const [token, setToken] = useState("");
   const [liveSync, setLiveSync] = useState(false);
   const [level, setLevel] = useState(null);
+  const [entertainment, setEntertainment] = useState({streaming: false, areas: []});
+
+  // entertainment areas come from the Hue app; reload them whenever the lights load
+  useEffect(() => {
+    if (lights.length !== 0){
+      getEntertainmentAreas().then(setEntertainment);
+    }
+  },[lights.length]);
+
+  const changingHub = useRef(false);
+  const tookOver = useRef(undefined);
 
   // the audio loop reads the latest options/lights every frame
   const live = useRef({});
   live.current = {options: options, lights: lights};
+
+  // phone remote: share settings through the server and carry out its player commands
+  const store = useStore();
+  const reported = useRef({});
+  const commandHandler = useRef(() => {});
+  useEffect(() => connect(store, {host: true, onCommand: cmd => commandHandler.current(cmd)}), []);
+  useEffect(() => { sendStatus({liveSync: liveSync}); }, [liveSync]);
+
+  commandHandler.current = (cmd) => {
+    const labels = {play: 'Play', pause: 'Pause', next: 'Next Track', previous: 'Previous Track'};
+    if (cmd === 'stopLive'){
+      if (liveSync) toggleLiveSync();
+      return;
+    }
+    const button = labels[cmd] && document.querySelector(`[aria-label="${labels[cmd]}"]`);
+    if (button){
+      button.click();
+    } else {
+      logToServer(`remote command "${cmd}" ignored: player button not found`, 'warn');
+    }
+  };
 
   const toggleLiveSync = async () => {
     if (liveSync){
@@ -55,6 +86,7 @@ function App() {
         getOptions: () => live.current.options,
         getLights: () => extractLightId(live.current.lights),
         onLevel: setLevel,
+        onColor: xy => dispatch(setSyncedColor(xy)),
         onEnded: () => { setLiveSync(false); setLevel(null); }
       });
       setLiveSync(true);
@@ -77,9 +109,11 @@ function App() {
     else{
       if("spotify_refresh" in spotifyRefresh && spotifyRefresh.spotify_refresh !== "undefined"){
         const renewSpotConnect = async () => {
-          var access_token = await refreshSpotifyTokens(spotifyRefresh.spotify_refresh)         
+          var access_token = await refreshSpotifyTokens(spotifyRefresh.spotify_refresh)
           setSpotifyAccess('spotify_access', access_token.access_token, {path: '/', maxAge: 3500})
-          setToken(spotifyAccess.spotify_access)
+          // use the new token, not the expired cookie value from this render
+          setToken(access_token.access_token)
+          logToServer('Spotify access token refreshed')
         }
         renewSpotConnect();
       }
@@ -102,7 +136,8 @@ function App() {
   }
 
   const conBridge = async () => {
-    if("hueBridge" in hue && "ip" in hue.hueBridge && "username" in hue.hueBridge){
+    // while changing hubs the removed cookie can still be visible here, so don't reconnect to it
+    if(!changingHub.current && "hueBridge" in hue && "ip" in hue.hueBridge && "username" in hue.hueBridge){
         if(await establishConnection(hue.hueBridge)){
           dispatch(selectBridge(hue.hueBridge))
           dispatch(toggleBridgeOK(true))
@@ -119,6 +154,7 @@ function App() {
       }
       else{
         if("ip" in bridge && "username" in bridge && "name" in bridge){
+          changingHub.current = false;
           setHue('hueBridge', bridge, {path: '/'})
           dispatch(toggleBridgeOK(true))
           if(await establishConnection(bridge)){
@@ -135,22 +171,7 @@ function App() {
     } 
 
   useEffect(() => {
-    const Blob = new DrawBlob({
-      canvas: document.getElementById('blob'),
-      speed: 1500,
-      scramble: 0.9,
-      vectors: generatePoints({ sides: 4 }),
-      color: '#ff66cc',
-      colorFunction: (ctx) => {
-        const gradient = ctx.createLinearGradient(0,0, 1024,1024);
-  
-        // Add three color stops
-        gradient.addColorStop(.3, 'HotPink');
-        // gradient.addColorStop(.5, 'cyan');
-        gradient.addColorStop(1, 'Aqua');
-        return gradient;
-      }
-    })
+    drawBlob();
   },[])
 
   return (
@@ -172,14 +193,26 @@ function App() {
             token={token}
             autoPlay={false}
             magnifySliderOnHover={true}
-            syncExternalDevice={true}
-            syncExternalDeviceInterval={1}
-            persistDeviceSelection={true}
+            syncExternalDevice={false}
+            persistDeviceSelection={false}
             name="Syncify"
             callback={(State) => {
               audioSync.setPlaying(State.isPlaying);
+              if (State.track && (State.track.name !== reported.current.track || State.isPlaying !== reported.current.playing)){
+                reported.current = {track: State.track.name, playing: State.isPlaying};
+                sendStatus(reported.current);
+              }
               if (State.type === 'track_update'){
                 logToServer(`now playing "${State.track.name}"`);
+              }
+              if (State.errorType){
+                logToServer(`Spotify player ${State.errorType}: ${State.error}`, 'error');
+              }
+              // once the in-page device is ready, make it the active device
+              if (State.status === 'READY' && State.deviceId && tookOver.current !== State.deviceId){
+                tookOver.current = State.deviceId;
+                takeOverPlayback(token, State.deviceId)
+                  .catch(err => logToServer('Spotify takeover failed: ' + err.message, 'error'));
               }
             }}
             styles={{
@@ -225,17 +258,8 @@ function App() {
       
       {bridgeOK && (
         <div className="centerH">
-          <div className="option-menu">
-            <div className="titlebar">
-              <div>Sync Options</div>
-              {optionGlyph}
-            </div>
-            <div css={css`
-              display: grid;
-              grid-template-columns: 1fr auto;
-              align-items: center;
-              padding: 2%;
-              border-bottom: 1px solid rgb(33,33,33);`}>
+          <SyncOptions entertainment={entertainment} liveAudio={(
+            <div css={row}>
               <div css={css`line-height: 1.8; font-size: 14pt;`}>
                 Live Audio
                 {liveSync && (
@@ -248,36 +272,7 @@ function App() {
                 {liveSync ? 'Stop' : 'Start'}
               </div>
             </div>
-            <HueOption
-              tag="Change Bulb Colors" 
-              checked={options.colorShift}
-              last={false}
-            />
-            <HueOption 
-              tag="Change Bulb Brightness" 
-              checked={options.brightnessShift}
-              last={!options.brightnessShift}
-            />
-            {options.brightnessShift && (
-            <div className="db-slider">
-              <div className="db-info">
-                {hubinfo}
-                <div>Adjust the decibel thresholds for brightness changes.</div>
-              </div>
-              <Nouislider id="db"
-                range = {{min: -35, max: 0}}
-                start = {[options.dbLow, options.dbHigh]}
-                orientation = "horizontal"
-                tooltips = {true}
-                connect = {true}
-                step = {1}
-                onUpdate = {async (index) => {
-                  await dispatch(refreshDb(index))
-                }}
-              />
-            </div>
-            )}
-          </div>
+          )}/>
         </div>
       )}
 
@@ -290,6 +285,7 @@ function App() {
                 onClick={async () => {
                   pause();
                   if (liveSync) toggleLiveSync();
+                  changingHub.current = true;
                   await removeHue('hueBridge', {path: '/'})
                   await dispatch(refreshLights([]))
                   await dispatch(refreshBridges([]))
@@ -338,24 +334,8 @@ function App() {
     </div>
   );
 }
-// [{room, lights}] in the order rooms first appear, so the layout stays stable across refreshes
-function groupByRoom(lights){
-  const rooms = [];
-  const byId = {};
-  lights.forEach(l => {
-    if(!(l.room.id in byId)){
-      byId[l.room.id] = {room: l.room, lights: []};
-      rooms.push(byId[l.room.id]);
-    }
-    byId[l.room.id].lights.push(l);
-  });
-  return rooms;
-}
-
 const refresh = <svg className='refresh-icon' xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M13.5 2c-5.288 0-9.649 3.914-10.377 9h-3.123l4 5.917 4-5.917h-2.847c.711-3.972 4.174-7 8.347-7 4.687 0 8.5 3.813 8.5 8.5s-3.813 8.5-8.5 8.5c-3.015 0-5.662-1.583-7.171-3.957l-1.2 1.775c1.916 2.536 4.948 4.182 8.371 4.182 5.797 0 10.5-4.702 10.5-10.5s-4.703-10.5-10.5-10.5z"/></svg>
-const optionGlyph = <svg className='icon' xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M12 9c.552 0 1 .449 1 1s-.448 1-1 1-1-.449-1-1 .448-1 1-1zm0-2c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm-9 4c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm18 0c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm-9-6c.343 0 .677.035 1 .101v-3.101c0-.552-.447-1-1-1s-1 .448-1 1v3.101c.323-.066.657-.101 1-.101zm9 4c.343 0 .677.035 1 .101v-7.101c0-.552-.447-1-1-1s-1 .448-1 1v7.101c.323-.066.657-.101 1-.101zm0 10c-.343 0-.677-.035-1-.101v3.101c0 .552.447 1 1 1s1-.448 1-1v-3.101c-.323.066-.657.101-1 .101zm-18-10c.343 0 .677.035 1 .101v-7.101c0-.552-.447-1-1-1s-1 .448-1 1v7.101c.323-.066.657-.101 1-.101zm9 6c-.343 0-.677-.035-1-.101v7.101c0 .552.447 1 1 1s1-.448 1-1v-7.101c-.323.066-.657.101-1 .101zm-9 4c-.343 0-.677-.035-1-.101v3.101c0 .552.447 1 1 1s1-.448 1-1v-3.101c-.323.066-.657.101-1 .101z"/></svg>
 const hubButton = <svg className="hub" xmlns="http://www.w3.org/2000/svg" width="24" viewBox="0 0 24 24"><path d="M 12 2.163 C 15.204 2.163 15.584 2.175 16.85 2.233 C 20.102 2.381 21.621 3.924 21.769 7.152 C 21.827 8.417 21.838 8.797 21.838 12.001 C 21.838 15.206 21.826 15.585 21.769 16.85 C 21.62 20.075 20.105 21.621 16.85 21.769 C 15.584 21.827 15.206 21.839 12 21.839 C 8.796 21.839 8.416 21.827 7.151 21.769 C 3.891 21.62 2.38 20.07 2.232 16.849 C 2.174 15.584 2.162 15.205 2.162 12 C 2.162 8.796 2.175 8.417 2.232 7.151 C 2.381 3.924 3.896 2.38 7.151 2.232 C 8.417 2.175 8.796 2.163 12 2.163 Z M 12 0 C 8.741 0 8.333 0.014 7.053 0.072 C 2.695 0.272 0.273 2.69 0.073 7.052 C 0.014 8.333 0 8.741 0 12 C 0 15.259 0.014 15.668 0.072 16.948 C 0.272 21.306 2.69 23.728 7.052 23.928 C 8.333 23.986 8.741 24 12 24 C 15.259 24 15.668 23.986 16.948 23.928 C 21.302 23.728 23.73 21.31 23.927 16.948 C 23.986 15.668 24 15.259 24 12 C 24 8.741 23.986 8.333 23.928 7.053 C 23.732 2.699 21.311 0.273 16.949 0.073 C 15.668 0.014 15.259 0 12 0 Z M 12 5.838 C 8.597 5.838 5.838 8.597 5.838 12 C 5.838 15.403 8.597 18.163 12 18.163 C 15.403 18.163 18.162 15.404 18.162 12 C 18.162 8.597 15.403 5.838 12 5.838 Z M 12 16 C 9.791 16 8 14.21 8 12 C 8 9.791 9.791 8 12 8 C 14.209 8 16 9.791 16 12 C 16 14.21 14.209 16 12 16 Z"/><circle cx="8.972" cy="19.581" r="0.928"/><circle cx="14.972" cy="19.581" r="0.928"/><circle cx="11.972" cy="19.581" r="0.928"/></svg>
 const hub = <svg className="icon" xmlns="http://www.w3.org/2000/svg" width="24" viewBox="0 0 24 24"><path d="M 12 2.163 C 15.204 2.163 15.584 2.175 16.85 2.233 C 20.102 2.381 21.621 3.924 21.769 7.152 C 21.827 8.417 21.838 8.797 21.838 12.001 C 21.838 15.206 21.826 15.585 21.769 16.85 C 21.62 20.075 20.105 21.621 16.85 21.769 C 15.584 21.827 15.206 21.839 12 21.839 C 8.796 21.839 8.416 21.827 7.151 21.769 C 3.891 21.62 2.38 20.07 2.232 16.849 C 2.174 15.584 2.162 15.205 2.162 12 C 2.162 8.796 2.175 8.417 2.232 7.151 C 2.381 3.924 3.896 2.38 7.151 2.232 C 8.417 2.175 8.796 2.163 12 2.163 Z M 12 0 C 8.741 0 8.333 0.014 7.053 0.072 C 2.695 0.272 0.273 2.69 0.073 7.052 C 0.014 8.333 0 8.741 0 12 C 0 15.259 0.014 15.668 0.072 16.948 C 0.272 21.306 2.69 23.728 7.052 23.928 C 8.333 23.986 8.741 24 12 24 C 15.259 24 15.668 23.986 16.948 23.928 C 21.302 23.728 23.73 21.31 23.927 16.948 C 23.986 15.668 24 15.259 24 12 C 24 8.741 23.986 8.333 23.928 7.053 C 23.732 2.699 21.311 0.273 16.949 0.073 C 15.668 0.014 15.259 0 12 0 Z M 12 5.838 C 8.597 5.838 5.838 8.597 5.838 12 C 5.838 15.403 8.597 18.163 12 18.163 C 15.403 18.163 18.162 15.404 18.162 12 C 18.162 8.597 15.403 5.838 12 5.838 Z M 12 16 C 9.791 16 8 14.21 8 12 C 8 9.791 9.791 8 12 8 C 14.209 8 16 9.791 16 12 C 16 14.21 14.209 16 12 16 Z"/><circle cx="8.972" cy="19.581" r="0.928"/><circle cx="14.972" cy="19.581" r="0.928"/><circle cx="11.972" cy="19.581" r="0.928"/></svg>
-const hubinfo = <svg className="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fillRule="evenodd" clipRule="evenodd"><path d="M12 0c6.623 0 12 5.377 12 12s-5.377 12-12 12-12-5.377-12-12 5.377-12 12-12zm0 1c6.071 0 11 4.929 11 11s-4.929 11-11 11-11-4.929-11-11 4.929-11 11-11zm.5 17h-1v-9h1v9zm-.5-12c.466 0 .845.378.845.845 0 .466-.379.844-.845.844-.466 0-.845-.378-.845-.844 0-.467.379-.845.845-.845z"/></svg>
 
 export default App

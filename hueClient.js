@@ -74,10 +74,37 @@ async function createAppKey(ip) {
   return { appKey: entry.success.username, clientKey: entry.success.clientkey };
 }
 
-function connect(ip, appKey) {
+// clientKey is only returned at pairing time; it's the DTLS key for entertainment streaming
+function connect(ip, appKey, clientKey) {
   return {
     ip,
     appKey,
+    clientKey,
+
+    // the DTLS PSK identity is the application id, which /auth/v1 returns as a header
+    async getApplicationId() {
+      const response = await fetch(`https://${ip}/auth/v1`, {
+        headers: { 'hue-application-key': appKey }, agent, timeout: 5000,
+      });
+      return response.headers.get('hue-application-id');
+    },
+
+    async getEntertainmentConfigs() {
+      const result = await request(ip, '/clip/v2/resource/entertainment_configuration', { appKey });
+      return result.data;
+    },
+
+    // entertainment services belong to devices (owner), which is how channels map to lights
+    async getEntertainmentServices() {
+      const result = await request(ip, '/clip/v2/resource/entertainment', { appKey });
+      return result.data;
+    },
+
+    setEntertainmentAction(id, action) {
+      return request(ip, `/clip/v2/resource/entertainment_configuration/${id}`, {
+        method: 'PUT', appKey, body: { action },
+      });
+    },
 
     async getLights() {
       const result = await request(ip, '/clip/v2/resource/light', { appKey });

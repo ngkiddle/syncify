@@ -12,6 +12,20 @@ export const toggleRoom = (roomId, sync) => {
     }
 }
 
+export const setSyncedColor = (colors) => {
+    return {
+        type: 'SET SYNCED COLOR',
+        payload: colors
+    }
+}
+
+export const toggleShuffle = (paletteId) => {
+    return {
+        type: 'TOGGLE SHUFFLE',
+        payload: paletteId
+    }
+}
+
 export const refreshLights = (lights) => {
     return {
         type: 'REFRESH LIGHTS',
@@ -49,6 +63,27 @@ export const toggleBridgeOK = (ok) => {
     return {
         type: 'TOGGLE BRIDGE OK',
         payload: ok
+    }
+}
+
+export const setEntertainmentArea = (id) => {
+    return {
+        type: 'SET ENTERTAINMENT AREA',
+        payload: id
+    }
+}
+
+export const setPalette = (id) => {
+    return {
+        type: 'SET PALETTE',
+        payload: id
+    }
+}
+
+export const setColorInterval = (seconds) => {
+    return {
+        type: 'SET COLOR INTERVAL',
+        payload: seconds
     }
 }
 

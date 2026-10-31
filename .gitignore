@@ -24,3 +24,10 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# paired Hue bridge credentials (local only)
+.hue-bridge.json
+.remote-pin
+
+# launcher output
+logs/

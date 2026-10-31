@@ -47,6 +47,26 @@ async function getLights(){
     return l;
 };
   
+async function getEntertainmentAreas(){
+    const response = await fetch('/api/entertainmentAreas');
+    const body = await response.json();
+    if(body.connected === false){
+        return {streaming: false, areas: []};
+    }
+    return body;
+};
+
+// lightIds get static colors from the palette ({colors, shuffle}); resolves {lightId: [x, y]}
+async function setStaticColors(lightIds, palette){
+    const response = await fetch('/api/staticColors', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({lights: lightIds, palette: palette})
+    });
+    const body = await response.json();
+    return body.colors || {};
+};
+
 async function sendSegments (segments, progress, trackDur, t, options, lights){
     const response = await fetch('/api/sendAnalysis', 
     {
@@ -78,5 +98,7 @@ export {
     getBridges,
     establishConnection,
     getLights,
+    getEntertainmentAreas,
+    setStaticColors,
     sendSegments
 }

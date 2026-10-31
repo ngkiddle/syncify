@@ -63,7 +63,7 @@ function attach(app) {
   app.get('/logs', (req, res) => res.send(page));
 
   app.get('/api/logs', (req, res) => {
-    res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+    res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive' });
     res.flushHeaders();
     history.forEach(line => res.write(`data: ${JSON.stringify(line)}\n\n`));
     clients.add(res);

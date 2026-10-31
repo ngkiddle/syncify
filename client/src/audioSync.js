@@ -1,6 +1,7 @@
 // Live audio analysis: captures shared tab/system audio, measures loudness with the
 // Web Audio API and streams brightness frames to the server for the lights.
 import {logToServer} from "./remoteLog.js";
+import PALETTES from "./palettes.js";
 
 const frameMs = 200;            // roughly Spotify's average segment length
 const silentWarnMs = 5000;
@@ -14,9 +15,10 @@ var playing = true;
 var silentSince = undefined;
 var warnedSilent = false;
 var warnedOffline = false;
+var lastColors = undefined;
 
 // getOptions/getLights are read every frame so toggles and the dB slider apply live
-async function start({getOptions, getLights, onLevel, onEnded}){
+async function start({getOptions, getLights, onLevel, onColor, onEnded}){
     stream = await navigator.mediaDevices.getDisplayMedia({
         video: true,    // Chrome requires video to be requested; we drop it right away
         audio: {echoCancellation: false, noiseSuppression: false, autoGainControl: false},
@@ -44,10 +46,11 @@ async function start({getOptions, getLights, onLevel, onEnded}){
     silentSince = Date.now();
     warnedSilent = false;
     warnedOffline = false;
-    timer = setInterval(() => tick(getOptions(), getLights(), onLevel), frameMs);
+    lastColors = undefined;
+    timer = setInterval(() => tick(getOptions(), getLights(), onLevel, onColor), frameMs);
 }
 
-function tick(options, lights, onLevel){
+function tick(options, lights, onLevel, onColor){
     analyser.getFloatTimeDomainData(buffer);
     var peak = 0;
     for (var i = 0; i < buffer.length; i++){
@@ -77,10 +80,15 @@ function tick(options, lights, onLevel){
     fetch('/api/liveFrame', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({bri: bri, lights: lights, options: options})
+        body: JSON.stringify({bri: bri, lights: lights, options: options, palette: Object.assign({shuffle: Boolean(options.shuffle[options.palette])}, PALETTES[options.palette])})
     })
     .then(res => res.json())
     .then(body => {
+        // only report actual color changes so the UI doesn't re-render every frame
+        if (body.colors && JSON.stringify(body.colors) !== lastColors){
+            lastColors = JSON.stringify(body.colors);
+            onColor(body.colors);
+        }
         if (body.connected === false && !warnedOffline){
             warnedOffline = true;
             logToServer('live frame rejected: server is not connected to the bridge (reload the page)', 'warn');

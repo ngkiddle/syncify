@@ -73,7 +73,8 @@ const scopes = [
     "user-read-private",
     "app-remote-control",
     "streaming",
-    "user-modify-playback-state"
+    "user-modify-playback-state",
+    "user-read-recently-played"
 ];
 
 async function connectSpotify(){
@@ -179,6 +180,64 @@ function createSectionData(sects){
     return sections;
 }
 
+// Makes the in-page Syncify player the active Spotify device, picking up whatever was
+// playing last (paused) so its play button works without choosing a device first.
+async function takeOverPlayback(token, deviceId){
+    const api = (path, init) => fetch('https://api.spotify.com/v1' + path, Object.assign({
+        headers: {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'}
+    }, init));
+
+    // transferring keeps the current/last session's track and position. Right after the
+    // player is ready Spotify may not know the new device yet (500/404), so retry briefly.
+    var transfer = undefined;
+    for (var attempt = 0; attempt < 5; attempt++){
+        if (attempt > 0){
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
+        transfer = await api('/me/player', {
+            method: 'PUT',
+            body: JSON.stringify({device_ids: [deviceId], play: false})
+        });
+        if (transfer.ok || (transfer.status !== 404 && transfer.status < 500)){
+            break;
+        }
+    }
+    if (transfer.ok){
+        const current = await api('/me/player');
+        if (current.status === 200){
+            const state = await current.json();
+            if (state.item){
+                logToServer(`Syncify is now the Spotify device, ready to resume "${state.item.name}"`);
+                return true;
+            }
+        }
+    }
+
+    // no session to transfer: cue up the most recently played track instead
+    const recent = await api('/me/player/recently-played?limit=1');
+    if (!recent.ok){
+        logToServer(`nothing to resume (recently-played HTTP ${recent.status}` +
+            (recent.status === 401 || recent.status === 403 ? '; log in to Spotify again to grant access)' : ')'), 'warn');
+        return false;
+    }
+    const item = ((await recent.json()).items || [])[0];
+    if (!item){
+        return false;
+    }
+    const context = item.context && item.context.uri;
+    const body = context && context.indexOf(':artist:') < 0
+        ? {context_uri: context, offset: {uri: item.track.uri}}
+        : {uris: [item.track.uri]};
+    const play = await api('/me/player/play?device_id=' + deviceId, {method: 'PUT', body: JSON.stringify(body)});
+    if (play.ok){
+        // the API can only cue by starting playback, so pause straight away
+        await api('/me/player/pause?device_id=' + deviceId, {method: 'PUT'});
+        logToServer(`Syncify is now the Spotify device, cued up "${item.track.name}"`);
+        return true;
+    }
+    return false;
+}
+
 function pause(){
     var element = document.querySelector('[aria-label="Pause"]');
     if(element !== null){
@@ -196,5 +255,6 @@ export {
     createSegmentData,
     extractLightId,
     createSectionData,
+    takeOverPlayback,
     pause
 }

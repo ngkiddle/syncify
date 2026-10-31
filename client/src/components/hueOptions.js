@@ -12,13 +12,15 @@ function HueOption({tag, checked, last}){
     if(last){
         grid =  css`
             display: grid;
-            grid-template-columns: 90% 10%;
+            grid-template-columns: 1fr auto;
+            align-items: center;
             padding: 2%;`;
     }
     else{
         grid =  css`
             display: grid;
-            grid-template-columns: 90% 10%;
+            grid-template-columns: 1fr auto;
+            align-items: center;
             padding: 2%;
             border-bottom: 1px solid rgb(33,33,33);`;
     }

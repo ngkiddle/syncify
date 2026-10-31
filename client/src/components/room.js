@@ -25,4 +25,18 @@ function Room({room, lights}){
     )
 }
 
+// [{room, lights}] in the order rooms first appear, so the layout stays stable across refreshes
+export function groupByRoom(lights){
+    const rooms = [];
+    const byId = {};
+    lights.forEach(l => {
+        if(!(l.room.id in byId)){
+            byId[l.room.id] = {room: l.room, lights: []};
+            rooms.push(byId[l.room.id]);
+        }
+        byId[l.room.id].lights.push(l);
+    });
+    return rooms;
+}
+
 export default Room

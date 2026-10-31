@@ -28,6 +28,9 @@ const global = css`
     margin-bottom: .5%;
     margin-top: 5%;
   }
+  .App{
+    padding-bottom: 150px;
+  }
   .centerH{
     display: block;
     margin: auto;
@@ -113,7 +116,7 @@ const global = css`
     align-items: flex-start;
     gap: 20px;
     width: 90%;
-    margin: 20px auto 60px;
+    margin: 20px auto 0;
   }
   .room-list .option-menu{
     width: 300px;
@@ -185,16 +188,16 @@ const global = css`
     margin: auto;
     margin-bottom: 8%;
   }
-  #db .noUi-connect{
+  #db .noUi-connect, #speed .noUi-connect{
     background: rgb(33,33,33);
   }
   
-  #db .noUi-handle{
+  #db .noUi-handle, #speed .noUi-handle{
     cursor: grab;
     border-radius: 24px;
     background: rgba(255,255,255,1);
   }
-  #db .noUi-tooltip{
+  #db .noUi-tooltip, #speed .noUi-tooltip{
     background: rgba(255,255,255,.5);
     box-shadow: 5px 5px 20px rgb(255,255,255) inset;
     border-radius: 24px;
@@ -217,6 +220,39 @@ const global = css`
     z-index: 100;
     right: -1010%;
     top: 75%;
+  }
+  /* phones: full-width cards stacked with tight spacing instead of the fixed 500px desktop layout */
+  @media (max-width: 600px){
+    .App{
+      padding-bottom: 60px;
+    }
+    .centerH{
+      width: auto;
+      margin-left: 8px;
+      margin-right: 8px;
+    }
+    img.centerH{
+      width: 45% !important;
+      margin: 8px auto 0;
+    }
+    .option-menu{
+      width: auto;
+      margin-top: 10px;
+    }
+    /* keep the end handles and their tooltips inside the card */
+    .db-slider{
+      margin-left: 9%;
+      margin-right: 9%;
+    }
+    .room-list{
+      width: auto;
+      gap: 10px;
+      margin: 10px 8px 0;
+    }
+    .room-list .option-menu{
+      width: 100%;
+      margin: 0;
+    }
   }
 `;
 
